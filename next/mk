@@ -1,0 +1,47 @@
+#!/bin/bash
+# Requires:
+#   sudo apt install gcc-arm-linux-gnueabihf gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu
+
+set -e
+set -u
+
+cd "${0%/*}"
+
+declare -ar FLAGS=(
+  '-std=c89'
+  '-pedantic'
+  '-Wall'
+  '-Werror'
+  '-Werror=implicit-fallthrough'
+  '-Werror=strict-prototypes'
+  '-Wsign-compare'
+  '-Wsign-conversion'
+  '-Wunused-parameter'
+  '-Wuninitialized'
+  '-Os'
+  '-fomit-frame-pointer'
+)
+
+#                         __aeabi_uidiv __gnu_thumb1_case_uhi __gnu_thumb1_case_uqi
+# t=armv6-m         #2820 1             2                     2
+# t=armv6s-m        #2820 1             2                     2
+# t=armv7           #2868 1             0                     0
+  t=armv7-m         #2876 0             0                     0
+# t=armv7e-m        #2880 0             0                     0
+# t=armv8-m.base    #2760 0             2                     2
+# t=armv8-m.main    #2868 0             0                     0
+# t=armv8.1-m.main  #2924 0             0                     0
+arm-linux-gnueabi-gcc -march="${t}" "${FLAGS[@]}" apf_interpreter.c -c -o apf_interpreter.armt.o
+# This dumps external calls:
+#   llvm-objdump -d -r apf_interpreter.armt.o | grep -E --color=yes -A1 'f7ff fffe' | grep -E R_ARM_THM_CALL | grep -Ev $'\t(memcmp|memcpy|memset|apf_allocate_buffer|apf_transmit_buffer|apf_internal_[_a-z]+)$' || :
+
+arm-linux-gnueabi-gcc "${FLAGS[@]}" apf_interpreter.c -c -o apf_interpreter.arm.o
+aarch64-linux-gnu-gcc "${FLAGS[@]}" apf_interpreter.c -c -o apf_interpreter.aarch64.o
+clang -m32 "${FLAGS[@]}" -Wnullable-to-nonnull-conversion -Wthread-safety apf_interpreter.c -c -o apf_interpreter.x86.o
+clang -m64 "${FLAGS[@]}" -Wnullable-to-nonnull-conversion -Wthread-safety apf_interpreter.c -c -o apf_interpreter.x86-64.o
+
+size apf_interpreter.armt.o
+size apf_interpreter.arm.o     | tail -n +2
+size apf_interpreter.aarch64.o | tail -n +2
+size apf_interpreter.x86.o     | tail -n +2
+size apf_interpreter.x86-64.o  | tail -n +2

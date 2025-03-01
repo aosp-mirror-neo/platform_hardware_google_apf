@@ -19,7 +19,7 @@ package {
 }
 
 cc_defaults {
-    name: "apfv7_defaults",
+    name: "apfnext_defaults",
 
     cflags: [
         "-Wall",
@@ -37,8 +37,8 @@ cc_defaults {
 }
 
 cc_library_static {
-    name: "libapf_v7",
-    defaults: ["apfv7_defaults"],
+    name: "libapf_next",
+    defaults: ["apfnext_defaults"],
     static_libs: [
         "libapfbuf",
     ],
@@ -72,4 +72,28 @@ sh_test_host {
     test_options: {
         unit_test: true,
     },
+}
+
+cc_test_host {
+    name: "apf_checksum_test",
+    srcs: [
+        "apf_checksum_test.cc",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wno-unused-function",
+    ],
+    stl: "c++_static",
+}
+
+cc_test_host {
+    name: "apf_dns_test",
+    srcs: [
+        "apf_dns_test.cc",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wno-unused-function",
+    ],
+    stl: "c++_static",
 }

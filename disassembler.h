@@ -22,6 +22,11 @@
 extern "C" {
 #endif
 
+typedef struct {
+    const char* prefix;
+    const char* content;
+} disas_ret;
+
 /**
  * Disassembles an APF program into a human-readable format.
  *
@@ -33,7 +38,7 @@ extern "C" {
  *
  * @return pointer to static buffer which contains human readable text.
  */
-const char* apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t* ptr2pc);
+disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t* ptr2pc);
 
 #ifdef __cplusplus
 }
