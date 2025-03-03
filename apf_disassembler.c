@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
 #include "disassembler.h"
+#include "next/apf_defs.h"
+#include "next/apf.h"
 
 // Disassembles an APF program. A hex dump of the program is supplied on stdin.
 //
@@ -36,7 +39,15 @@ int main(void) {
       program[program_len++] = byte;
   }
 
+  const u8 v6_marker = JMP_OPCODE << 3 | 1;
+  const bool is_v6 = (program[0] & 0b11111001) == v6_marker;
+  if (is_v6) {
+      printf("APFv6 program:\n");
+  } else {
+      printf("APFv4 program:\n");
+  }
   for (uint32_t pc = 0; pc < program_len + 2;) {
-      printf("%s\n", apf_disassemble(program, program_len, &pc));
+      const disas_ret ret = apf_disassemble(program, program_len, &pc);
+      printf("%s%s\n", ret.prefix, ret.content);
   }
 }

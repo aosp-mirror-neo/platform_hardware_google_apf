@@ -28,9 +28,9 @@
 #include <string.h>
 
 #include "disassembler.h"
-#include "apf_interpreter.h"
-#include "v7/apf_interpreter.h"
-#include "v7/test_buf_allocator.h"
+#include "v4/apf_interpreter.h"
+#include "next/apf_interpreter.h"
+#include "next/test_buf_allocator.h"
 
 #define __unused __attribute__((unused))
 
@@ -155,7 +155,7 @@ int tracing_enabled = 0;
 void maybe_print_tracing_header() {
     if (!tracing_enabled) return;
 
-    printf("      R0       R1       PC  Instruction\n");
+    printf("      R0       R1       (size)    PC  Instruction\n");
     printf("-------------------------------------------------\n");
 
 }
@@ -198,8 +198,9 @@ void apf_trace_hook(uint32_t pc, const uint32_t* regs, const uint8_t* program, u
                     const uint32_t* memory __unused, uint32_t memory_len __unused) {
     if (!tracing_enabled) return;
 
-    printf("%8" PRIx32 " %8" PRIx32 " ", regs[0], regs[1]);
-    printf("%s\n", apf_disassemble(program, program_len, &pc));
+    printf("%8" PRIx32 " %8" PRIx32 "       ", regs[0], regs[1]);
+    const disas_ret ret = apf_disassemble(program, program_len, &pc);
+    printf("%s%s\n", ret.prefix, ret.content);
 }
 
 // Process pcap file through APF filter and generate output files

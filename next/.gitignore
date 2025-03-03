@@ -1,0 +1,5 @@
+apf_interpreter.arm.o
+apf_interpreter.armt.o
+apf_interpreter.aarch64.o
+apf_interpreter.x86.o
+apf_interpreter.x86-64.o

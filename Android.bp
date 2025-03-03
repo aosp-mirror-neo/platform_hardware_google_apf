@@ -37,7 +37,7 @@ cc_defaults {
 cc_library_static {
     name: "libapf",
     defaults: ["apf_defaults"],
-    srcs: ["apf_interpreter.c"],
+    srcs: ["v4/apf_interpreter.c"],
     sdk_version: "24",
 }
 
@@ -54,7 +54,7 @@ cc_library_static {
     name: "libapfbuf",
     defaults: ["apf_defaults"],
     srcs: [
-        "v7/test_buf_allocator.c",
+        "next/test_buf_allocator.c",
     ],
     sdk_version: "24",
 }
@@ -76,10 +76,10 @@ cc_binary_host {
     ],
     srcs: [
         "apf_run.c",
-        "apf_interpreter.c",
         "disassembler.c",
-        "v7/apf_interpreter.c",
-        "v7/test_buf_allocator.c",
+        "next/apf_interpreter.c",
+        "next/test_buf_allocator.c",
+        "v4/apf_interpreter.c",
     ],
     cflags: [
         "-DAPF_TRACE_HOOK=apf_trace_hook",
@@ -112,28 +112,4 @@ sh_test_host {
     test_options: {
         unit_test: true,
     },
-}
-
-cc_test_host {
-    name: "apf_checksum_test",
-    srcs: [
-        "apf_checksum_test.cc",
-    ],
-    cflags: [
-        "-Wall",
-        "-Wno-unused-function",
-    ],
-    stl: "c++_static",
-}
-
-cc_test_host {
-    name: "apf_dns_test",
-    srcs: [
-        "apf_dns_test.cc",
-    ],
-    cflags: [
-        "-Wall",
-        "-Wno-unused-function",
-    ],
-    stl: "c++_static",
 }
