@@ -83,6 +83,11 @@ static void print_jump_target(uint32_t target, uint32_t program_len) {
         bprintf("PASS");
     } else if (target == program_len + 1) {
         bprintf("DROP");
+    } else if (target > program_len + 1) {
+        uint32_t ofs = target - program_len;
+        uint32_t imm = ofs >> 1;
+        bprintf((ofs & 1) ? "cnt_and_drop" : "cnt_and_pass");
+        bprintf("[cnt=%d]", imm);
     } else {
         bprintf("%u", target);
     }
