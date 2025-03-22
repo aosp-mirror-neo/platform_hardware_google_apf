@@ -35,10 +35,12 @@ typedef struct {
  * @param ptr2pc pointer to the program counter which points to the current instruction.
  *           After function call, the program counter will be updated to point to the
  *           next instruction.
+ * @param ptr2pc pointer to the program counter which points to the current instruction.
+ * @param is_v6 if it is an APFv6 program or not.
  *
  * @return pointer to static buffer which contains human readable text.
  */
-disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t* ptr2pc);
+disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t* ptr2pc, bool is_v6);
 
 #ifdef __cplusplus
 }
