@@ -148,9 +148,9 @@ static int do_apf_run(apf_context* ctx) {
     // upper bound on the number of instructions in the program.
     u32 instructions_remaining = ctx->program_len;
 
-    // APFv6 requires at least 5 u32 counters at the end of ram, this makes counter[-5]++ valid
+    // APFv6.1 requires at least 6 u32 counters at the end of ram, this makes counter[-6]++ valid
     // This cannot wrap due to previous check, that enforced program_len & ram_len < 2GiB.
-    if (ctx->program_len + 20 > ctx->ram_len) return EXCEPTION;
+    if (ctx->program_len + 24 > ctx->ram_len) return EXCEPTION;
 
     // Only populate if packet long enough, and IP version is IPv4.
     // Note: this doesn't actually check the ethertype...
@@ -316,6 +316,25 @@ static int do_apf_run(apf_context* ctx) {
             if (matched ^ !reg_num) ctx->pc += imm;
             break;
           }
+          case JBSPTRMATCH_OPCODE: {
+            u32 ofs = DECODE_U8();    // 2nd imm, at worst 5 bytes past prog_len
+            u8 cmp_imm = DECODE_U8(); // 3rd imm, at worst 6 bytes past prog_len
+            u8 cnt = (cmp_imm >> 4) + 1; // 1..16 bytestrings to match
+            u8 len = (cmp_imm & 15) + 1; // 1..16 bytestring length
+            const u32 last_packet_offs = ofs + len - 1;  // min 0+1-1=0, max 255+16-1=270
+            bool matched = false;
+            // imm is jump target offset.
+            // [ofs..last_packet_offs] are packet bytes to compare.
+            ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
+            // cnt underflow on final iteration not an issue as not used after loop.
+            // 4th (through max 19th) u8 immediates, this reaches at most 22 bytes past prog_len
+            // This assumes min ram size of 529 bytes, where APFv6.1 has min ram size of 3000
+            // the +3 is to skip over the APFv6 'datajmp' instruction, while 2* to have access to 526 bytes,
+            // Primary purpose is for mac (6) & ipv6 (16) addresses, so even offsets should be easy...
+            while (cnt--) matched |= !memcmp(ctx->program + 3 + 2 * DECODE_U8(), ctx->packet + ofs, len);
+            if (matched ^ !reg_num) ctx->pc += imm;
+            break;
+          }
           // There is a difference in APFv4 and APFv6 arithmetic behaviour!
           // APFv4:  R[0] op= Rbit ? R[1] : imm;  (and it thus doesn't make sense to have R=1 && len_field>0)
           // APFv6+: REG  op= len_field ? imm : OTHER_REG;  (note: this is *DIFFERENT* with R=1 len_field==0)
@@ -361,13 +380,16 @@ static int do_apf_run(apf_context* ctx) {
                 break;
               }
               case ALLOCATE_EXT_OPCODE:
+              do_allocate:
                 ASSERT_RETURN(ctx->tx_buf == NULL);
-                if (reg_num == 0) {
+                if (opcode == ALLOC_XMIT_OPCODE) {
+                    ctx->tx_buf_len = 266 + 8 * imm;
+                } else if (reg_num == 0) {
                     ctx->tx_buf_len = REG;
                 } else {
                     ctx->tx_buf_len = decode_be16(ctx); // 2nd imm, at worst 6 B past prog_len
                 }
-                // checksumming functions requires minimum 266 byte buffer for correctness
+                // checksumming functions require minimum 266 byte buffer for correctness
                 if (ctx->tx_buf_len < 266) ctx->tx_buf_len = 266;
                 ctx->tx_buf = apf_allocate_buffer(ctx->caller_ctx, ctx->tx_buf_len);
                 if (!ctx->tx_buf) {  // allocate failure
@@ -378,15 +400,38 @@ static int do_apf_run(apf_context* ctx) {
                 memset(ctx->tx_buf, 0, ctx->tx_buf_len);
                 ctx->mem.named.tx_buf_offset = 0;
                 break;
-              case TRANSMIT_EXT_OPCODE: {
+              case TRANSMIT_EXT_OPCODE:
+              do_transmit: {
                 // tx_buf_len cannot be large because we'd run out of RAM,
                 // so the above unsigned comparison effectively guarantees casting pkt_len
                 // to a signed value does not result in it going negative.
-                u8 ip_ofs = DECODE_U8();              // 2nd imm, at worst 5 B past prog_len
-                u8 csum_ofs = DECODE_U8();            // 3rd imm, at worst 6 B past prog_len
+                u8 ip_ofs;
+                u8 csum_ofs;
                 u8 csum_start = 0;
                 u16 partial_csum = 0;
+                bool udp = reg_num;
                 u32 pkt_len = ctx->mem.named.tx_buf_offset;
+                if (opcode != ALLOC_XMIT_OPCODE) {
+                    // parse TRANSMIT_EXT_OPCODE arguments
+                    ip_ofs = DECODE_U8();                 // 2nd imm, at worst 5 B past prog_len
+                    csum_ofs = DECODE_U8();               // 3rd imm, at worst 6 B past prog_len
+                    if (csum_ofs < 255) {
+                        csum_start = DECODE_U8();         // 4th imm, at worst 7 B past prog_len
+                        partial_csum = decode_be16(ctx);  // 5th imm, at worst 9 B past prog_len
+                    }
+                } else if (imm_len) {
+                    // parse ALLOC_XMIT_OPCODE (R=0) immediate
+                    static const u8 auto_csum_start[8] = { 26, 26, 34, 38, 22, 22, 22, 22 };
+                    static const u8 auto_csum_ofs[8] =   { 40, 44, 36, 40, 60, 64, 56, 64 };
+                    ip_ofs = 14;
+                    csum_ofs = auto_csum_ofs[imm & 7];
+                    csum_start = auto_csum_start[imm & 7];
+                    partial_csum = imm >> 3;
+                    udp = !(imm & 3);
+                } else {
+                    // ALLOC_XMIT_OPCODE (R=0) with no immediate
+                    ip_ofs = csum_ofs = 255;
+                }
                 ASSERT_RETURN(ctx->tx_buf);
                 // If pkt_len > allocate_buffer_len, it means sth. wrong
                 // happened and the tx_buf should be deallocated.
@@ -394,14 +439,9 @@ static int do_apf_run(apf_context* ctx) {
                     do_discard_buffer(ctx);
                     return EXCEPTION;
                 }
-                if (csum_ofs < 255) {
-                    csum_start = DECODE_U8();         // 4th imm, at worst 7 B past prog_len
-                    partial_csum = decode_be16(ctx);  // 5th imm, at worst 9 B past prog_len
-                }
                 {
                     int dscp = csum_and_return_dscp(ctx->tx_buf, (s32)pkt_len, ip_ofs,
-                                                    partial_csum, csum_start, csum_ofs,
-                                                    (bool)reg_num);
+                                                    partial_csum, csum_start, csum_ofs, udp);
                     int ret = do_transmit_buffer(ctx, pkt_len, dscp);
                     if (ret) { counter[-4]++; return EXCEPTION; } // transmit failure
                 }
@@ -416,6 +456,7 @@ static int do_apf_run(apf_context* ctx) {
                 u32 copy_len = ctx->R[1];
                 if (imm != EPKTDATACOPYR1_EXT_OPCODE) {
                     copy_len = DECODE_U8();  // 2nd imm, at worst 8 bytes past prog_len
+                    if (!copy_len) copy_len = 256 + DECODE_U8(); // at worst 9 bytes past prog_len
                 }
                 ASSERT_RETURN(ctx->tx_buf);
                 ASSERT_IN_OUTPUT_BOUNDS(dst_offs, copy_len);
@@ -433,26 +474,45 @@ static int do_apf_run(apf_context* ctx) {
                 ctx->mem.named.tx_buf_offset = dst_offs;
                 break;
               }
-              case JDNSQMATCH_EXT_OPCODE:       // 43
-              case JDNSAMATCH_EXT_OPCODE:       // 44
-              case JDNSQMATCHSAFE_EXT_OPCODE:   // 45
-              case JDNSAMATCHSAFE_EXT_OPCODE: { // 46
+              case JDNSQMATCH_EXT_OPCODE:        // 43 - 43 =  0 = 0b0000, u8
+              case JDNSAMATCH_EXT_OPCODE:        // 44 - 43 =  1 = 0b0001,
+              case JDNSQMATCHSAFE_EXT_OPCODE:    // 45 - 43 =  2 = 0b0010, u8
+              case JDNSAMATCHSAFE_EXT_OPCODE:    // 46 - 43 =  3 = 0b0011,
+              case JDNSQMATCH2_EXT_OPCODE:       // 51 - 43 =  8 = 0b1000, u8 u8
+              case JDNSQMATCHSAFE2_EXT_OPCODE:   // 53 - 43 = 10 = 0b1010, u8 u8
+              case JDNSQMATCH1_EXT_OPCODE:       // 55 - 43 = 12 = 0b1100, u16
+              case JDNSQMATCHSAFE1_EXT_OPCODE: { // 57 - 43 = 14 = 0b1110, u16
                 u32 jump_offs = decode_imm(ctx, imm_len); // 2nd imm, at worst 8 B past prog_len
-                int qtype = -1;
-                if (imm & 1) { // JDNSQMATCH & JDNSQMATCHSAFE are *odd* extended opcodes
-                    qtype = DECODE_U8();  // 3rd imm, at worst 9 bytes past prog_len
+                int qtype1 = -1;
+                int qtype2;
+                imm -= JDNSQMATCH_EXT_OPCODE;  // Correction for easier opcode handling
+                // Now, we have:
+                //   imm & 1 --> no following u8
+                //   imm & 2 --> 'SAFE'
+                //   imm & 4 --> join two u8s into a be16
+                //   imm & 8 --> second u8
+                // bit 0 clear means we need to parse a u8, set means 'A' opcode variety
+                if (!(imm & 1)) qtype1 = DECODE_U8();  // 3rd imm, at worst 9 bytes past prog_len
+                // bit 3 set means we need to parse another u8
+                if (imm & 8) {
+                    qtype2 = DECODE_U8();  // 4th imm, at worst 10 bytes past prog_len
+                } else {
+                    qtype2 = qtype1;
                 }
+                // bit 2 set means we need to join the two u8s into a be16
+                if (imm & 4) qtype2 = qtype1 = (qtype1 << 8) | qtype2;
                 {
                     u32 udp_payload_offset = ctx->R[0];
                     match_result_type match_rst = match_names(ctx->program + ctx->pc,
                                                               ctx->program + ctx->program_len,
                                                               ctx->packet + udp_payload_offset,
                                                               ctx->packet_len - udp_payload_offset,
-                                                              qtype);
+                                                              qtype1,
+                                                              qtype2);
                     if (match_rst == error_program) return EXCEPTION;
                     if (match_rst == error_packet) {
                         counter[-5]++; // increment error dns packet counter
-                        return (imm >= JDNSQMATCHSAFE_EXT_OPCODE) ? PASS : DROP;
+                        return (imm & 2) ? PASS : DROP;  // imm & 2 detects SAFE opcodes
                     }
                     while (ctx->pc + 1 < ctx->program_len &&
                            (ctx->program[ctx->pc] || ctx->program[ctx->pc + 1])) {
@@ -550,6 +610,9 @@ static int do_apf_run(apf_context* ctx) {
             }
             break;
           }
+          case ALLOC_XMIT_OPCODE:
+            if (reg_num) goto do_allocate; else goto do_transmit;
+            break;
           default:  // Unknown opcode
             return EXCEPTION;  // Bail out
         }

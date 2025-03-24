@@ -47,7 +47,7 @@ int main(void) {
       printf("APFv4 program:\n");
   }
   for (uint32_t pc = 0; pc < program_len + 2;) {
-      const disas_ret ret = apf_disassemble(program, program_len, &pc);
+      const disas_ret ret = apf_disassemble(program, program_len, &pc, is_v6);
       printf("%s%s\n", ret.prefix, ret.content);
   }
 }

@@ -192,6 +192,7 @@ void packet_handler(int use_apf_v6_interpreter, uint8_t* program,
     free(packet);
 }
 
+static int use_apf_v6_interpreter = 0;
 
 void apf_trace_hook(uint32_t pc, const uint32_t* regs, const uint8_t* program, uint32_t program_len,
                     const uint8_t* packet __unused, uint32_t packet_len __unused,
@@ -199,7 +200,7 @@ void apf_trace_hook(uint32_t pc, const uint32_t* regs, const uint8_t* program, u
     if (!tracing_enabled) return;
 
     printf("%8" PRIx32 " %8" PRIx32 "       ", regs[0], regs[1]);
-    const disas_ret ret = apf_disassemble(program, program_len, &pc);
+    const disas_ret ret = apf_disassemble(program, program_len, &pc, use_apf_v6_interpreter);
     printf("%s%s\n", ret.prefix, ret.content);
 }
 
@@ -285,7 +286,6 @@ int main(int argc, char* argv[]) {
     uint32_t data_len = 0;
     uint32_t filter_age = 0;
     int print_counter_enabled = 0;
-    int use_apf_v6_interpreter = 0;
 
     int opt;
     char *endptr;
