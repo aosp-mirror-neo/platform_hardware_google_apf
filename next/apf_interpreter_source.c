@@ -456,6 +456,7 @@ static int do_apf_run(apf_context* ctx) {
                 u32 copy_len = ctx->R[1];
                 if (imm != EPKTDATACOPYR1_EXT_OPCODE) {
                     copy_len = DECODE_U8();  // 2nd imm, at worst 8 bytes past prog_len
+                    if (!copy_len) copy_len = 256 + DECODE_U8(); // at worst 9 bytes past prog_len
                 }
                 ASSERT_RETURN(ctx->tx_buf);
                 ASSERT_IN_OUTPUT_BOUNDS(dst_offs, copy_len);

@@ -383,6 +383,7 @@ disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t
                     }
                     if (imm == EPKTDATACOPYIMM_EXT_OPCODE) {
                         uint32_t len = DECODE_IMM(1);
+                        if (!len) len = 256 + DECODE_IMM(1);
                         bprintf("src=r0, len=%d", len);
                     } else {
                         bprintf("src=r0, len=r1");
@@ -539,6 +540,7 @@ disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t
         case PKTDATACOPY_OPCODE: {
             uint32_t src_offs = imm;
             uint32_t copy_len = DECODE_IMM(1);
+            if (!copy_len) copy_len = 256 + DECODE_IMM(1);
             if (reg_num == 0) {
                 print_opcode("pktcopy");
                 bprintf("src=%d, len=%d", src_offs, copy_len);

@@ -262,6 +262,7 @@ typedef union {
  * R=0 means copy from packet.
  * R=1 means copy from APF program/data region.
  * The source offset is stored in imm1, copy length is stored in u8 imm2.
+ * APFv6.1: if u8 imm2 is 0 then copy length is 256 + extra u8 imm3
  * e.g. "pktcopy 0, 16" or "datacopy 0, 16"
  */
 #define PKTDATACOPY_OPCODE 25
@@ -342,6 +343,7 @@ typedef union {
  * R=0 means copy from packet.
  * R=1 means copy from APF program/data region.
  * The source offset is stored in R0, copy length is stored in u8 imm2 or R1.
+ * APFv6.1: if u8 imm2 is 0 then copy length is 256 + extra u8 imm3.
  * e.g. "epktcopy r0, 16", "edatacopy r0, 16", "epktcopy r0, r1", "edatacopy r0, r1"
  */
 #define EPKTDATACOPYIMM_EXT_OPCODE 41
@@ -1059,6 +1061,7 @@ static int do_apf_run(apf_context* ctx) {
                 u32 copy_len = ctx->R[1];
                 if (imm != EPKTDATACOPYR1_EXT_OPCODE) {
                     copy_len = DECODE_U8();  /* 2nd imm, at worst 8 bytes past prog_len */
+                    if (!copy_len) copy_len = 256 + DECODE_U8(); /* at worst 9 bytes past prog_len */
                 }
                 ASSERT_RETURN(ctx->tx_buf);
                 ASSERT_IN_OUTPUT_BOUNDS(dst_offs, copy_len);
