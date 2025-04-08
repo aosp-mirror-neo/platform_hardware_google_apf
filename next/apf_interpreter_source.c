@@ -629,6 +629,7 @@ static int apf_runner(void* ctx, u32* const program, const u32 program_len,
     // APFv6 interpreter requires program & ram_len to be 4 byte aligned.
     if (3 & (uintptr_t)program) return EXCEPTION;
     if (3 & ram_len) return EXCEPTION;
+    if (ram_len < 1024) return EXCEPTION; // due to JBSPTR
 
     // We rely on ram_len + 65536 not overflowing, so require ram_len < 2GiB
     // Similarly LDDW/STDW have special meaning for negative ram offsets.
