@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef APF_INTERPRETER_H_
-#define APF_INTERPRETER_H_
+#ifndef APF_INTERPRETER_V61_H_
+#define APF_INTERPRETER_V61_H_
 
 #include <stdint.h>
 
@@ -172,4 +172,4 @@ int apf_run(void* ctx, uint32_t* const program, const uint32_t program_len,
 }
 #endif
 
-#endif  /* APF_INTERPRETER_H_ */
+#endif  /* APF_INTERPRETER_V61_H_ */
