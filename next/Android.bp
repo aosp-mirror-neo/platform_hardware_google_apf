@@ -36,18 +36,6 @@ cc_defaults {
     ],
 }
 
-cc_library_static {
-    name: "libapf_next",
-    defaults: ["apfnext_defaults"],
-    static_libs: [
-        "libapfbuf",
-    ],
-    srcs: [
-        "apf_interpreter.c",
-    ],
-    sdk_version: "24",
-}
-
 sh_test_host {
     name: "apf_assemble_test",
     src: "apf_interpreter_assemble.sh",

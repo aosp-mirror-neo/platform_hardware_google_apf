@@ -1,0 +1,49 @@
+/*
+ * Copyright 2025, The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#include <v4/apf_interpreter.h>
+// TODO: avoid copy/paste for different version interpreters
+#define apf_run apfv6__apf_run
+#define apf_internal_do_transmit_buffer apfv6__apf_internal_do_transmit_buffer
+#define apf_version apfv6__apf_version
+#define apf_internal_csum_and_return_dscp apfv6__apf_internal_csum_and_return_dscp
+#define apf_internal_calc_csum apfv6__apf_internal_calc_csum
+#define apf_internal_match_names apfv6__apf_internal_match_names
+#define apf_internal_match_single_name apfv6__apf_internal_match_single_name
+#include <v6/apf_interpreter.h>
+#undef apf_run
+#undef apf_internal_do_transmit_buffer
+#undef apf_version
+#undef apf_internal_csum_and_return_dscp
+#undef apf_internal_calc_csum
+#undef apf_internal_match_names
+#undef apf_internal_match_single_name
+#include <next/apf_interpreter.h>
+#define APF_VERSION_V6 6000
+int apf_run_generic(int apf_version, uint32_t* program,
+                    uint32_t program_len, uint32_t ram_len,
+                    const uint8_t* packet, uint32_t packet_len,
+                    uint32_t filter_age) {
+    if (apf_version <= 4) {
+        return accept_packet((uint8_t*)program, program_len, ram_len, packet, packet_len,
+                             filter_age >> 14);
+    } else if (apf_version == APF_VERSION_V6) {
+        return apfv6__apf_run(nullptr, program, program_len, ram_len, packet, packet_len,
+                          filter_age);
+    } else {
+        return apf_run(nullptr, program, program_len, ram_len, packet, packet_len,
+                       filter_age);
+    }
+}

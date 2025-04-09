@@ -35,9 +35,35 @@ cc_defaults {
 }
 
 cc_library_static {
+    name: "libapfv6",
+    defaults: ["apf_defaults"],
+    srcs: [
+        "v6/apf_interpreter.c",
+    ],
+    cflags: [
+        "-Dapf_run=apfv6__apf_run",
+        "-Dapf_internal_do_transmit_buffer=apfv6__apf_internal_do_transmit_buffer",
+        "-Dapf_version=apfv6__apf_version",
+        "-Dapf_internal_csum_and_return_dscp=apfv6__apf_internal_csum_and_return_dscp",
+        "-Dapf_internal_calc_csum=apfv6__apf_internal_calc_csum",
+        "-Dapf_internal_match_names=apfv6__apf_internal_match_names",
+        "-Dapf_internal_match_single_name=apfv6__apf_internal_match_single_name",
+    ],
+    sdk_version: "24",
+}
+
+cc_library_static {
     name: "libapf",
     defaults: ["apf_defaults"],
-    srcs: ["v4/apf_interpreter.c"],
+    srcs: [
+        "apflib.c",
+        "v4/apf_interpreter.c",
+        "next/apf_interpreter.c",
+        "next/test_buf_allocator.c",
+    ],
+    static_libs: [
+        "libapfv6",
+    ],
     sdk_version: "24",
 }
 
@@ -46,15 +72,6 @@ cc_library_static {
     defaults: ["apf_defaults"],
     srcs: [
         "disassembler.c",
-    ],
-    sdk_version: "24",
-}
-
-cc_library_static {
-    name: "libapfbuf",
-    defaults: ["apf_defaults"],
-    srcs: [
-        "next/test_buf_allocator.c",
     ],
     sdk_version: "24",
 }
