@@ -16,21 +16,13 @@
 #include <v4/apf_interpreter.h>
 // TODO: avoid copy/paste for different version interpreters
 #define apf_run apfv6__apf_run
-#define apf_internal_do_transmit_buffer apfv6__apf_internal_do_transmit_buffer
 #define apf_version apfv6__apf_version
-#define apf_internal_csum_and_return_dscp apfv6__apf_internal_csum_and_return_dscp
-#define apf_internal_calc_csum apfv6__apf_internal_calc_csum
-#define apf_internal_match_names apfv6__apf_internal_match_names
-#define apf_internal_match_single_name apfv6__apf_internal_match_single_name
 #include <v6/apf_interpreter.h>
 #undef apf_run
-#undef apf_internal_do_transmit_buffer
 #undef apf_version
-#undef apf_internal_csum_and_return_dscp
-#undef apf_internal_calc_csum
-#undef apf_internal_match_names
-#undef apf_internal_match_single_name
+
 #include <next/apf_interpreter.h>
+
 #define APF_VERSION_V6 6000
 int apf_run_generic(int apf_version, uint32_t* program,
                     uint32_t program_len, uint32_t ram_len,
