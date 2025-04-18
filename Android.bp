@@ -53,16 +53,25 @@ cc_library_static {
 }
 
 cc_library_static {
+    name: "libapfnext",
+    defaults: ["apf_defaults"],
+    srcs: [
+        "next/apf_interpreter.c",
+    ],
+    sdk_version: "24",
+}
+
+cc_library_static {
     name: "libapf",
     defaults: ["apf_defaults"],
     srcs: [
         "apflib.c",
         "v4/apf_interpreter.c",
-        "next/apf_interpreter.c",
         "next/test_buf_allocator.c",
     ],
     static_libs: [
         "libapfv6",
+        "libapfnext",
     ],
     sdk_version: "24",
 }
