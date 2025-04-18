@@ -53,6 +53,24 @@ cc_library_static {
 }
 
 cc_library_static {
+    name: "libapfv61",
+    defaults: ["apf_defaults"],
+    srcs: [
+        "v6.1/apf_interpreter.c",
+    ],
+    cflags: [
+        "-Dapf_run=apfv61__apf_run",
+        "-Dapf_internal_do_transmit_buffer=apfv61__apf_internal_do_transmit_buffer",
+        "-Dapf_version=apfv61__apf_version",
+        "-Dapf_internal_csum_and_return_dscp=apfv61__apf_internal_csum_and_return_dscp",
+        "-Dapf_internal_calc_csum=apfv61__apf_internal_calc_csum",
+        "-Dapf_internal_match_names=apfv61__apf_internal_match_names",
+        "-Dapf_internal_match_single_name=apfv61__apf_internal_match_single_name",
+    ],
+    sdk_version: "24",
+}
+
+cc_library_static {
     name: "libapfnext",
     defaults: ["apf_defaults"],
     srcs: [
@@ -71,6 +89,7 @@ cc_library_static {
     ],
     static_libs: [
         "libapfv6",
+        "libapfv61",
         "libapfnext",
     ],
     sdk_version: "24",
