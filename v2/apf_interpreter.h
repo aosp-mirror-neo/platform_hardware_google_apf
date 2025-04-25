@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef APF_INTERPRETER_H_
-#define APF_INTERPRETER_H_
+#ifndef APF_V2_INTERPRETER_H_
+#define APF_V2_INTERPRETER_H_
 
 #include <stdint.h>
 
@@ -50,4 +50,4 @@ int accept_packet(const uint8_t* program, uint32_t program_len,
 }
 #endif
 
-#endif  // APF_INTERPRETER_H_
+#endif  // APF_V2_INTERPRETER_H_
