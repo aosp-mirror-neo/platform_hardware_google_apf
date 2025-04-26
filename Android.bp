@@ -25,8 +25,11 @@ cc_defaults {
         "-Wall",
         "-Werror",
         "-Werror=implicit-fallthrough",
+        "-Werror=missing-prototypes",
+        "-Werror=strict-prototypes",
         "-Wnullable-to-nonnull-conversion",
         "-Wsign-compare",
+        "-Wsign-conversion",
         "-Wthread-safety",
         "-Wunused-parameter",
         "-Wuninitialized",
@@ -40,6 +43,8 @@ cc_object {
         "v2/apf_interpreter.c",
     ],
     cflags: [
+        "-Wno-missing-prototypes",
+        "-Wno-sign-conversion",
         "-DAPF_FRAME_HEADER_SIZE=14",
         "-Daccept_packet=apfv2__accept_packet",
     ],
@@ -53,6 +58,8 @@ cc_object {
         "v4/apf_interpreter.c",
     ],
     cflags: [
+        "-Wno-missing-prototypes",
+        "-Wno-sign-conversion",
         "-DAPF_FRAME_HEADER_SIZE=14",
         "-Daccept_packet=apfv4__accept_packet",
     ],
@@ -163,6 +170,8 @@ cc_binary_host {
         "v4/apf_interpreter.c",
     ],
     cflags: [
+        "-Wno-missing-prototypes",
+        "-Wno-sign-conversion",
         "-DAPF_FRAME_HEADER_SIZE=14",
         "-DAPF_TRACE_HOOK=apf_trace_hook",
     ],

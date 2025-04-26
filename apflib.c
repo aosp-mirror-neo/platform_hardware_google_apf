@@ -42,6 +42,8 @@
 #undef apf_run
 #undef apf_version
 
+#include "apflib.h"
+
 int apf_run_generic(const uint32_t apf_version,
                     uint32_t* const program,
                     const uint32_t program_len,
