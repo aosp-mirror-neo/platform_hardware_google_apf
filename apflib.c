@@ -13,56 +13,61 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#define accept_packet apfv2__accept_packet
+#include <v2/apf_interpreter.h>
+#undef accept_packet
+#undef APF_VERSION  // 2
+
+#define accept_packet apfv4__accept_packet
 #include <v4/apf_interpreter.h>
-// TODO: avoid copy/paste for different version interpreters
+#undef accept_packet
+#undef APF_VERSION  // 4
+
 #define apf_run apfv6__apf_run
 #define apf_version apfv6__apf_version
 #include <v6/apf_interpreter.h>
 #undef apf_run
-#undef apf_version
+#undef apf_version  // returns 6000
 
 #define apf_run apfv61__apf_run
 #define apf_version apfv61__apf_version
 #include <v6.1/apf_interpreter.h>
 #undef apf_run
+#undef apf_version  // returns 6100
+
+#define apf_run apfnext__apf_run
+#define apf_version apfnext__apf_version
+#include <next/apf_interpreter.h>
+#undef apf_run
 #undef apf_version
 
-#include <next/apf_interpreter.h>
+int apf_run_generic(const uint32_t apf_version,
+                    uint32_t* const program,
+                    const uint32_t program_len,
+                    const uint32_t ram_len,
+                    const uint8_t* packet,
+                    const uint32_t packet_len,
+                    const uint32_t filter_age_16384ths) {
+    uint8_t * const program8 = (uint8_t*)program;
+    const uint32_t filter_age = filter_age_16384ths >> 14;
+    void * const ctx = nullptr;
 
-#define APF_VERSION_V2 2
-#define APF_VERSION_V4 4
-#define APF_VERSION_V6 (int)apfv6__apf_version()
-#define APF_VERSION_V61 (int)apfv61__apf_version()
+    if (apf_version == 2)
+        return apfv2__accept_packet(program8, program_len, packet, packet_len, filter_age);
 
-int apf_run_generic(int apf_version, uint32_t* program,
-                    uint32_t program_len, uint32_t ram_len,
-                    const uint8_t* packet, uint32_t packet_len,
-                    uint32_t filter_age) {
-    if (apf_version < APF_VERSION_V2) {
-        return -1;
-    }
+    // Note: APFv3 is just APFv4 with somewhat broken memory/counter read API.
+    if (apf_version == 3 || apf_version == 4)
+        return apfv4__accept_packet(program8, program_len, ram_len, packet, packet_len, filter_age);
 
-    // TODO: handle APFv2 version interpreter
-    if (apf_version <= APF_VERSION_V4) {
-        return accept_packet((uint8_t*)program, program_len, ram_len, packet, packet_len,
-                             filter_age >> 14);
-    }
+    if (apf_version == apfv6__apf_version())  // 6000
+        return apfv6__apf_run(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 
-    if (apf_version < APF_VERSION_V6) {
-        return accept_packet((uint8_t*)program, program_len, ram_len, packet, packet_len,
-                             filter_age >> 14);
-    }
+    if (apf_version == apfv61__apf_version())  // 6100
+        return apfv61__apf_run(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 
-    if (apf_version < APF_VERSION_V61) {
-        return apfv6__apf_run(nullptr, program, program_len, ram_len, packet, packet_len,
-                          filter_age);
-    }
+    if (apf_version >= 20250228) // hardcoded (for now) to allow evolving apfnext__apf_version()
+        return apfnext__apf_run(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 
-    if (apf_version == APF_VERSION_V61) {
-        return apfv61__apf_run(nullptr, program, program_len, ram_len, packet, packet_len,
-                          filter_age);
-    }
-
-    return apf_run(nullptr, program, program_len, ram_len, packet, packet_len,
-                    filter_age);
+    return -1;
 }
