@@ -14,28 +14,6 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["hardware_google_apf_license"],
-}
-
-cc_defaults {
-    name: "apfnext_defaults",
-
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Werror=implicit-fallthrough",
-        "-Werror=missing-prototypes",
-        "-Werror=strict-prototypes",
-        "-Wnullable-to-nonnull-conversion",
-        "-Wsign-compare",
-        "-Wsign-conversion",
-        "-Wthread-safety",
-        "-Wunused-parameter",
-        "-Wuninitialized",
-    ],
-}
-
 sh_test_host {
     name: "apf_assemble_test",
     src: "apf_interpreter_assemble.sh",
