@@ -19,10 +19,13 @@
 extern "C" {
 #endif
 
-int apf_run_generic(int apf_version, uint32_t *program,
-                    uint32_t program_len, uint32_t ram_len,
-                    const uint8_t *packet, uint32_t packet_len,
-                    uint32_t filter_age);
+int apf_run_generic(const uint32_t apf_version,
+                    uint32_t * const program,
+                    const uint32_t program_len,
+                    const uint32_t ram_len,
+                    const uint8_t *packet,
+                    const uint32_t packet_len,
+                    const uint32_t filter_age_16384ths);
 
 #ifdef __cplusplus
 }

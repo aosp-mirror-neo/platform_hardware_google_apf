@@ -31,7 +31,7 @@
 char prefix_buf[16];
 char print_buf[8196];
 char* buf_ptr;
-int buf_remain;
+size_t buf_remain;
 bool v6_mode = false;
 
 __attribute__ ((format (printf, 1, 2) ))
@@ -41,9 +41,9 @@ static void bprintf(const char* format, ...) {
     int ret = vsnprintf(buf_ptr, buf_remain, format, args);
     va_end(args);
     if (ret < 0) return;
-    if (ret >= buf_remain) ret = buf_remain;
-    buf_ptr += ret;
-    buf_remain -= ret;
+    size_t used = ((size_t)ret >= buf_remain) ? buf_remain : (size_t)ret;
+    buf_ptr += used;
+    buf_remain -= used;
 }
 
 static void print_opcode(const char* opcode) {
@@ -98,8 +98,8 @@ static void print_jump_target(uint32_t target, uint32_t program_len) {
     }
 }
 
-static void print_qtype(int qtype) {
-    switch(qtype) {
+static void print_qtype(uint32_t qtype) {
+    switch (qtype) {
         case 1:
             bprintf("A, ");
             break;
@@ -177,7 +177,8 @@ disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t
         const uint32_t imm_len = 1 << (len_field - 1);
         imm = DECODE_IMM(imm_len);
         // Sign extend imm into signed_imm.
-        signed_imm = imm << ((4 - imm_len) * 8);
+        signed_imm = (int32_t)imm;
+        signed_imm <<= (4 - imm_len) * 8;
         signed_imm >>= (4 - imm_len) * 8;
     }
     switch (opcode) {
@@ -400,8 +401,8 @@ disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t
                 case JDNSQMATCHSAFE1_EXT_OPCODE:
                 case JDNSQMATCHSAFE2_EXT_OPCODE: {
                     uint32_t offs = DECODE_IMM(1 << (len_field - 1));
-                    int qtype1 = -1;
-                    int qtype2 = -1;
+                    uint32_t qtype1;
+                    uint32_t qtype2;
                     switch (imm) {
                         case JDNSQMATCH_EXT_OPCODE:
                             print_opcode(reg_num ? "jdnsqeq" : "jdnsqne");

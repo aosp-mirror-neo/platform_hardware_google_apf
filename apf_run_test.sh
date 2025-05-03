@@ -16,10 +16,6 @@ for prog in testdata/*.program; do
     outputpath=testdata/$testcase.output
 
     args="--trace --program $prog --packet $pkt"
-
-    # b/407149213 For debugging the symlink failure on test host.
-    ls -al testdata/
-
     if [[ -f testdata/$testcase.data ]]; then
         args="$args --data $(cat testdata/$testcase.data)"
     fi

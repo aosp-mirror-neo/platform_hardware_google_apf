@@ -22,25 +22,58 @@ cc_defaults {
     name: "apf_defaults",
 
     cflags: [
-        "-DAPF_FRAME_HEADER_SIZE=14",
         "-Wall",
         "-Werror",
         "-Werror=implicit-fallthrough",
+        "-Werror=missing-prototypes",
+        "-Werror=strict-prototypes",
         "-Wnullable-to-nonnull-conversion",
         "-Wsign-compare",
+        "-Wsign-conversion",
         "-Wthread-safety",
         "-Wunused-parameter",
         "-Wuninitialized",
     ],
 }
 
-cc_library_static {
-    name: "libapfv6",
+cc_object {
+    name: "apfv2",
+    defaults: ["apf_defaults"],
+    srcs: [
+        "v2/apf_interpreter.c",
+    ],
+    cflags: [
+        "-Wno-missing-prototypes",
+        "-Wno-sign-conversion",
+        "-DAPF_FRAME_HEADER_SIZE=14",
+        "-Daccept_packet=apfv2__accept_packet",
+    ],
+    sdk_version: "24",
+}
+
+cc_object {
+    name: "apfv4",
+    defaults: ["apf_defaults"],
+    srcs: [
+        "v4/apf_interpreter.c",
+    ],
+    cflags: [
+        "-Wno-missing-prototypes",
+        "-Wno-sign-conversion",
+        "-DAPF_FRAME_HEADER_SIZE=14",
+        "-Daccept_packet=apfv4__accept_packet",
+    ],
+    sdk_version: "24",
+}
+
+cc_object {
+    name: "apfv6",
     defaults: ["apf_defaults"],
     srcs: [
         "v6/apf_interpreter.c",
     ],
     cflags: [
+        "-fPIC",
         "-Dapf_run=apfv6__apf_run",
         "-Dapf_internal_do_transmit_buffer=apfv6__apf_internal_do_transmit_buffer",
         "-Dapf_version=apfv6__apf_version",
@@ -52,13 +85,14 @@ cc_library_static {
     sdk_version: "24",
 }
 
-cc_library_static {
-    name: "libapfv61",
+cc_object {
+    name: "apfv61",
     defaults: ["apf_defaults"],
     srcs: [
         "v6.1/apf_interpreter.c",
     ],
     cflags: [
+        "-fPIC",
         "-Dapf_run=apfv61__apf_run",
         "-Dapf_internal_do_transmit_buffer=apfv61__apf_internal_do_transmit_buffer",
         "-Dapf_version=apfv61__apf_version",
@@ -70,11 +104,21 @@ cc_library_static {
     sdk_version: "24",
 }
 
-cc_library_static {
-    name: "libapfnext",
+cc_object {
+    name: "apfnext",
     defaults: ["apf_defaults"],
     srcs: [
         "next/apf_interpreter.c",
+    ],
+    cflags: [
+        "-fPIC",
+        "-Dapf_run=apfnext__apf_run",
+        "-Dapf_internal_do_transmit_buffer=apfnext__apf_internal_do_transmit_buffer",
+        "-Dapf_version=apfnext__apf_version",
+        "-Dapf_internal_csum_and_return_dscp=apfnext__apf_internal_csum_and_return_dscp",
+        "-Dapf_internal_calc_csum=apfnext__apf_internal_calc_csum",
+        "-Dapf_internal_match_names=apfnext__apf_internal_match_names",
+        "-Dapf_internal_match_single_name=apfnext__apf_internal_match_single_name",
     ],
     sdk_version: "24",
 }
@@ -83,14 +127,13 @@ cc_library_static {
     name: "libapf",
     defaults: ["apf_defaults"],
     srcs: [
+        ":apfv2",
+        ":apfv4",
+        ":apfv6",
+        ":apfv61",
+        ":apfnext",
         "apflib.c",
-        "v4/apf_interpreter.c",
         "next/test_buf_allocator.c",
-    ],
-    static_libs: [
-        "libapfv6",
-        "libapfv61",
-        "libapfnext",
     ],
     sdk_version: "24",
 }
@@ -127,6 +170,9 @@ cc_binary_host {
         "v4/apf_interpreter.c",
     ],
     cflags: [
+        "-Wno-missing-prototypes",
+        "-Wno-sign-conversion",
+        "-DAPF_FRAME_HEADER_SIZE=14",
         "-DAPF_TRACE_HOOK=apf_trace_hook",
     ],
     target: {
