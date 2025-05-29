@@ -215,7 +215,7 @@ typedef union {
 /* Unconditionally pass (if R=0) or drop (if R=1) packet and optionally increment counter.
  * An optional non-zero unsigned immediate value can be provided to encode the counter number.
  * The counter is located (-4 * counter number) bytes from the end of the data region.
- * It is a U32 big-endian value and is always incremented by 1.
+ * It is a U32 firmware native endian value and is always incremented by 1.
  * This is more or less equivalent to: lddw R0, -4*N; add R0, 1; stdw R0, -4*N; {pass,drop}
  * e.g. "pass", "pass 1", "drop", "drop 1"
  */
