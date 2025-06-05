@@ -27,9 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "apflib.h"
 #include "disassembler.h"
-#include "v4/apf_interpreter.h"
-#include "next/apf_interpreter.h"
 #include "next/test_buf_allocator.h"
 
 #define __unused __attribute__((unused))
@@ -179,13 +178,15 @@ void packet_handler(int use_apf_v6_interpreter, uint8_t* program,
 
     maybe_print_tracing_header();
 
+    double filter_age_16384ths = filter_age * 16384.0;
+
     int ret;
     if (use_apf_v6_interpreter) {
-        ret = apf_run(NULL, (uint32_t*)program, program_len, ram_len, packet, packet_len,
-                            filter_age);
+        ret = apf_run_generic(6000, (uint32_t*)program, program_len, ram_len, packet, packet_len,
+                              (uint32_t)filter_age_16384ths);
     } else {
-        ret = accept_packet(program, program_len, ram_len, packet, packet_len,
-                        filter_age);
+        ret = apf_run_generic(4, (uint32_t*)program, program_len, ram_len, packet, packet_len,
+                              (uint32_t)filter_age_16384ths);
     }
     printf("Packet %sed\n", ret ? "pass" : "dropp");
 
@@ -218,6 +219,8 @@ void file_handler(int use_apf_v6_interpreter, uint8_t* program,
     int pass = 0;
     int drop = 0;
 
+    double filter_age_16384ths = filter_age * 16384.0;
+
     pcap = pcap_open_offline(filename, errbuf);
     if (pcap == NULL) {
         printf("Open pcap file failed.\n");
@@ -238,11 +241,11 @@ void file_handler(int use_apf_v6_interpreter, uint8_t* program,
 
         int result;
         if (use_apf_v6_interpreter) {
-            result = apf_run(NULL, (uint32_t*)program, program_len, ram_len, apf_packet,
-                             apf_header.len, filter_age);
+            result = apf_run_generic(6000, (uint32_t*)program, program_len, ram_len, apf_packet,
+                                     apf_header.len, (uint32_t)filter_age_16384ths);
         } else {
-            result = accept_packet(program, program_len, ram_len, apf_packet,
-                                   apf_header.len, filter_age);
+            result = apf_run_generic(4, (uint32_t*)program, program_len, ram_len, apf_packet,
+                                     apf_header.len, (uint32_t)filter_age_16384ths);
         }
 
         if (!result){
