@@ -44,6 +44,20 @@
 
 #include "apflib.h"
 
+const uint32_t* apf_supported_versions() {
+    const int NUM_VERSIONS = 6;
+    // Array includes an extra element for zero termination.
+    static uint32_t versions[NUM_VERSIONS + 1];
+    versions[0] = 2;
+    versions[1] = 3;
+    versions[2] = 4;
+    versions[3] = apfv6__apf_version();
+    versions[4] = apfv61__apf_version();
+    versions[5] = apfnext__apf_version();
+    versions[6] = 0; // zero terminator
+    return versions;
+}
+
 int apf_run_generic(const uint32_t apf_version,
                     uint32_t* const program,
                     const uint32_t program_len,
