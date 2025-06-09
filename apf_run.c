@@ -79,7 +79,7 @@ enum {
     OPT_DATA,
     OPT_AGE,
     OPT_TRACE,
-    OPT_V6,
+    OPT_VERSION,
 };
 
 const struct option long_options[] = {{"program", 1, NULL, OPT_PROGRAM},
@@ -88,7 +88,7 @@ const struct option long_options[] = {{"program", 1, NULL, OPT_PROGRAM},
                                       {"data", 1, NULL, OPT_DATA},
                                       {"age", 1, NULL, OPT_AGE},
                                       {"trace", 0, NULL, OPT_TRACE},
-                                      {"v6", 0, NULL, OPT_V6},
+                                      {"version", 1, NULL, OPT_VERSION},
                                       {"help", 0, NULL, 'h'},
                                       {"cnt", 0, NULL, 'c'},
                                       {NULL, 0, NULL, 0}};
@@ -171,27 +171,21 @@ void print_all_transmitted_packets() {
 }
 
 // Process packet through APF filter
-void packet_handler(int use_apf_v6_interpreter, uint8_t* program, uint32_t program_len,
-                    uint32_t ram_len, const char* pkt, uint32_t filter_age_16384ths) {
+void packet_handler(uint32_t apf_version, uint8_t* program, uint32_t program_len, uint32_t ram_len,
+                    const char* pkt, uint32_t filter_age_16384ths) {
     uint8_t* packet;
     uint32_t packet_len = parse_hex(pkt, &packet);
 
     maybe_print_tracing_header();
 
-    int ret;
-    if (use_apf_v6_interpreter) {
-        ret = apf_run_generic(6000, (uint32_t*)program, program_len, ram_len, packet, packet_len,
-                              filter_age_16384ths);
-    } else {
-        ret = apf_run_generic(4, (uint32_t*)program, program_len, ram_len, packet, packet_len,
-                              filter_age_16384ths);
-    }
-    printf("Packet %sed\n", ret ? "pass" : "dropp");
+    int result = apf_run_generic(apf_version, (uint32_t*)program, program_len, ram_len, packet,
+                                 packet_len, filter_age_16384ths);
+    printf("Packet %sed\n", result ? "pass" : "dropp");
 
     free(packet);
 }
 
-static int use_apf_v6_interpreter = 0;
+static int disassemble_as_v6_plus;
 
 void apf_trace_hook(uint32_t pc, const uint32_t* regs, const uint8_t* program, uint32_t program_len,
                     const uint8_t* packet __unused, uint32_t packet_len __unused,
@@ -199,13 +193,13 @@ void apf_trace_hook(uint32_t pc, const uint32_t* regs, const uint8_t* program, u
     if (!tracing_enabled) return;
 
     printf("%8" PRIx32 " %8" PRIx32 "       ", regs[0], regs[1]);
-    const disas_ret ret = apf_disassemble(program, program_len, &pc, use_apf_v6_interpreter);
+    const disas_ret ret = apf_disassemble(program, program_len, &pc, disassemble_as_v6_plus);
     printf("%s%s\n", ret.prefix, ret.content);
 }
 
 // Process pcap file through APF filter and generate output files
-void file_handler(int use_apf_v6_interpreter, uint8_t* program, uint32_t program_len,
-                  uint32_t ram_len, const char* filename, uint32_t filter_age_16384ths) {
+void file_handler(uint32_t apf_version, uint8_t* program, uint32_t program_len, uint32_t ram_len,
+                  const char* filename, uint32_t filter_age_16384ths) {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcap;
     struct pcap_pkthdr apf_header;
@@ -234,14 +228,8 @@ void file_handler(int use_apf_v6_interpreter, uint8_t* program, uint32_t program
     while ((apf_packet = pcap_next(pcap, &apf_header)) != NULL) {
         maybe_print_tracing_header();
 
-        int result;
-        if (use_apf_v6_interpreter) {
-            result = apf_run_generic(6000, (uint32_t*)program, program_len, ram_len, apf_packet,
-                                     apf_header.len, filter_age_16384ths);
-        } else {
-            result = apf_run_generic(4, (uint32_t*)program, program_len, ram_len, apf_packet,
-                                     apf_header.len, filter_age_16384ths);
-        }
+        int result = apf_run_generic(apf_version, (uint32_t*)program, program_len, ram_len,
+                                     apf_packet, apf_header.len, filter_age_16384ths);
 
         if (!result){
             drop++;
@@ -262,17 +250,28 @@ void file_handler(int use_apf_v6_interpreter, uint8_t* program, uint32_t program
 void print_usage(char* cmd) {
     fprintf(stderr,
             "Usage: %s --program <program> --pcap <file>|--packet <packet> "
-            "[--data <content>] [--age <number>] [--trace]\n"
+            "[--data <content>] [--age <number>] [--trace] [--version <version>]\n"
             "  --program    APF program, in hex.\n"
             "  --pcap       Pcap file to run through program.\n"
             "  --packet     Packet to run through program.\n"
             "  --data       Data memory contents, in hex.\n"
             "  --age        Age of program in seconds (default: 0).\n"
             "  --trace      Enable APF interpreter debug tracing.\n"
-            "  --v6         Use APF v6.\n"
-            "  -c, --cnt    Print the APF counters.\n"
-            "  -h, --help   Show this message.\n",
+            "  --version    ",
             basename(cmd));
+    const uint32_t* versions = apf_supported_versions();
+    if (*versions == 0) {
+        printf("\nINTERNAL ERROR\n");
+        exit(1);
+    }
+    while (*versions != 0) {
+        const uint32_t version = *versions++;
+        fprintf(stderr, "%" PRIu32 "%s", version,
+                *versions ? "|" :
+                        " (default).\n"
+                        "  -c, --cnt    Print the APF counters.\n"
+                        "  -h, --help   Show this message.\n");
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -284,6 +283,7 @@ int main(int argc, char* argv[]) {
     uint32_t data_len = 0;
     double filter_age_seconds = 0.0;
     uint32_t filter_age_16384ths = 0;
+    uint32_t apf_version = 0;
     int print_counter_enabled = 0;
 
     int opt;
@@ -338,8 +338,22 @@ int main(int argc, char* argv[]) {
             case OPT_TRACE:
                 tracing_enabled = 1;
                 break;
-            case OPT_V6:
-                use_apf_v6_interpreter = 1;
+            case OPT_VERSION:
+                errno = 0;
+                apf_version = strtoul(optarg, &endptr, 10);
+                if ((errno == ERANGE && apf_version == UINT32_MAX) ||
+                    (errno != 0 && apf_version == 0)) {
+                    perror("Error on version option: strtoul");
+                    exit(1);
+                }
+                if (endptr == optarg) {
+                    printf("No digit found in version.\n");
+                    exit(1);
+                }
+                if (apf_version == 0) {
+                    printf("Version must be non-zero.\n");
+                    exit(1);
+                }
                 break;
             case 'h':
                 print_usage(argv[0]);
@@ -354,6 +368,16 @@ int main(int argc, char* argv[]) {
                 break;
         }
     }
+
+    if (apf_version == 0) {
+        // Default to highest supported version.
+        const uint32_t* versions = apf_supported_versions();
+        while (*versions != 0) {
+            apf_version = *versions;
+            ++versions;
+        }
+    }
+    disassemble_as_v6_plus = apf_version >= 6000;
 
     if (!program) {
         printf("Must have APF program in option.\n");
@@ -373,10 +397,13 @@ int main(int argc, char* argv[]) {
 
     // Combine the program and data into the unified APF buffer.
     uint32_t ram_len = program_len + data_len;
-    if (use_apf_v6_interpreter) {
+    if (apf_version >= 6000) {
        ram_len += 3;
        ram_len &= ~3;
-       if (data_len < 20) ram_len += 20;
+        // APFv6 interpreter has 5 hardcoded counters.
+        if (data_len < (5 * 4)) ram_len += (5 * 4);
+        // APFv6.1 interpreter has one more hardcoded counter.
+        if (apf_version >= 6100 && data_len < (6 * 4)) ram_len += (1 * 4);
     }
 
     if (data) {
@@ -386,23 +413,26 @@ int main(int argc, char* argv[]) {
     }
 
     if (filename)
-        file_handler(use_apf_v6_interpreter, program, program_len, ram_len,
-                     filename, filter_age_16384ths);
+        file_handler(apf_version, program, program_len, ram_len, filename, filter_age_16384ths);
     else
-        packet_handler(use_apf_v6_interpreter, program, program_len, ram_len,
-                       packet, filter_age_16384ths);
+        packet_handler(apf_version, program, program_len, ram_len, packet, filter_age_16384ths);
 
     if (data_len) {
         printf("Data: ");
         print_hex(program + ram_len - data_len, data_len);
         printf("\n");
         if (print_counter_enabled) {
-          printf("APF packet counters:\n");
-          print_counter(program + ram_len - data_len, data_len);
+          printf("APF packet counters:");
+            if (apf_version <= 2) {
+                printf(" not supported in this version\n");
+            } else {
+                printf("\n");
+                print_counter(program + ram_len - data_len, data_len);
+            }
         }
     }
 
-    if (use_apf_v6_interpreter && head != NULL) {
+    if (apf_version >= 6000 && head != NULL) {
         print_all_transmitted_packets();
     }
 

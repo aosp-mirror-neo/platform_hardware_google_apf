@@ -15,7 +15,7 @@ for prog in testdata/*.program; do
     pkt=$(cat testdata/$testcase.packet)
     outputpath=testdata/$testcase.output
 
-    args="--trace --program $prog --packet $pkt"
+    args="--trace --version 4 --program $prog --packet $pkt"
     if [[ -f testdata/$testcase.data ]]; then
         args="$args --data $(cat testdata/$testcase.data)"
     fi
