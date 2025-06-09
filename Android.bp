@@ -39,13 +39,17 @@ cc_defaults {
 cc_object {
     name: "apfv2",
     defaults: ["apf_defaults"],
+    device_supported: true,
+    host_supported: true,
     srcs: [
+        "apf_trace_hook_weak.c",
         "v2/apf_interpreter.c",
     ],
     cflags: [
         "-Wno-missing-prototypes",
         "-Wno-sign-conversion",
         "-DAPF_FRAME_HEADER_SIZE=14",
+        "-DAPF_TRACE_HOOK=apf_trace_hook",
         "-Daccept_packet=apfv2__accept_packet",
     ],
     sdk_version: "24",
@@ -54,13 +58,17 @@ cc_object {
 cc_object {
     name: "apfv4",
     defaults: ["apf_defaults"],
+    device_supported: true,
+    host_supported: true,
     srcs: [
+        "apf_trace_hook_weak.c",
         "v4/apf_interpreter.c",
     ],
     cflags: [
         "-Wno-missing-prototypes",
         "-Wno-sign-conversion",
         "-DAPF_FRAME_HEADER_SIZE=14",
+        "-DAPF_TRACE_HOOK=apf_trace_hook",
         "-Daccept_packet=apfv4__accept_packet",
     ],
     sdk_version: "24",
@@ -69,7 +77,10 @@ cc_object {
 cc_object {
     name: "apfv6",
     defaults: ["apf_defaults"],
+    device_supported: true,
+    host_supported: true,
     srcs: [
+        "apf_trace_hook_weak.c",
         "v6/apf_interpreter.c",
     ],
     cflags: [
@@ -81,6 +92,7 @@ cc_object {
         "-Dapf_internal_calc_csum=apfv6__apf_internal_calc_csum",
         "-Dapf_internal_match_names=apfv6__apf_internal_match_names",
         "-Dapf_internal_match_single_name=apfv6__apf_internal_match_single_name",
+        "-DAPF_TRACE_HOOK=apf_trace_hook",
     ],
     sdk_version: "24",
 }
@@ -88,7 +100,10 @@ cc_object {
 cc_object {
     name: "apfv61",
     defaults: ["apf_defaults"],
+    device_supported: true,
+    host_supported: true,
     srcs: [
+        "apf_trace_hook_weak.c",
         "v6.1/apf_interpreter.c",
     ],
     cflags: [
@@ -100,6 +115,7 @@ cc_object {
         "-Dapf_internal_calc_csum=apfv61__apf_internal_calc_csum",
         "-Dapf_internal_match_names=apfv61__apf_internal_match_names",
         "-Dapf_internal_match_single_name=apfv61__apf_internal_match_single_name",
+        "-DAPF_TRACE_HOOK=apf_trace_hook",
     ],
     sdk_version: "24",
 }
@@ -107,7 +123,10 @@ cc_object {
 cc_object {
     name: "apfnext",
     defaults: ["apf_defaults"],
+    device_supported: true,
+    host_supported: true,
     srcs: [
+        "apf_trace_hook_weak.c",
         "next/apf_interpreter.c",
     ],
     cflags: [
@@ -119,6 +138,7 @@ cc_object {
         "-Dapf_internal_calc_csum=apfnext__apf_internal_calc_csum",
         "-Dapf_internal_match_names=apfnext__apf_internal_match_names",
         "-Dapf_internal_match_single_name=apfnext__apf_internal_match_single_name",
+        "-DAPF_TRACE_HOOK=apf_trace_hook",
     ],
     sdk_version: "24",
 }
@@ -126,6 +146,8 @@ cc_object {
 cc_library_static {
     name: "libapf",
     defaults: ["apf_defaults"],
+    device_supported: true,
+    host_supported: true,
     srcs: [
         ":apfv2",
         ":apfv4",
@@ -160,14 +182,13 @@ cc_binary_host {
     name: "apf_run",
     defaults: ["apf_defaults"],
     static_libs: [
+        "libapf",
         "libpcap",
     ],
     srcs: [
         "apf_run.c",
         "disassembler.c",
-        "next/apf_interpreter.c",
         "next/test_buf_allocator.c",
-        "v4/apf_interpreter.c",
     ],
     cflags: [
         "-Wno-missing-prototypes",
