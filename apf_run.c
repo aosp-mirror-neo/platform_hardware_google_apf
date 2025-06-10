@@ -144,12 +144,12 @@ void print_counter(const uint8_t* data, int data_len) {
     for (int i = 0; i < counter_len; ++i) {
         uint32_t value = get_counter_value(data, data_len, -COUNTER_SIZE * i);
         if (value != 0) {
-            printf("%s : %d \n", counter_name[i], value);
+            printf("%s : %d\n", counter_name[i], value);
         }
     }
 }
 
-int tracing_enabled = 0;
+static int tracing_enabled = 0;
 
 void maybe_print_tracing_header() {
     if (!tracing_enabled) return;
@@ -160,7 +160,7 @@ void maybe_print_tracing_header() {
 }
 
 void print_all_transmitted_packets() {
-    printf("transmitted packet: \n");
+    printf("Transmitted packet:\n");
     packet_buffer* current = head;
     while (current) {
         printf("\t");
@@ -171,22 +171,20 @@ void print_all_transmitted_packets() {
 }
 
 // Process packet through APF filter
-void packet_handler(int use_apf_v6_interpreter, uint8_t* program,
-                    uint32_t program_len, uint32_t ram_len, const char* pkt, uint32_t filter_age) {
+void packet_handler(int use_apf_v6_interpreter, uint8_t* program, uint32_t program_len,
+                    uint32_t ram_len, const char* pkt, uint32_t filter_age_16384ths) {
     uint8_t* packet;
     uint32_t packet_len = parse_hex(pkt, &packet);
 
     maybe_print_tracing_header();
 
-    double filter_age_16384ths = filter_age * 16384.0;
-
     int ret;
     if (use_apf_v6_interpreter) {
         ret = apf_run_generic(6000, (uint32_t*)program, program_len, ram_len, packet, packet_len,
-                              (uint32_t)filter_age_16384ths);
+                              filter_age_16384ths);
     } else {
         ret = apf_run_generic(4, (uint32_t*)program, program_len, ram_len, packet, packet_len,
-                              (uint32_t)filter_age_16384ths);
+                              filter_age_16384ths);
     }
     printf("Packet %sed\n", ret ? "pass" : "dropp");
 
@@ -206,9 +204,8 @@ void apf_trace_hook(uint32_t pc, const uint32_t* regs, const uint8_t* program, u
 }
 
 // Process pcap file through APF filter and generate output files
-void file_handler(int use_apf_v6_interpreter, uint8_t* program,
-                  uint32_t program_len, uint32_t ram_len, const char* filename,
-                  uint32_t filter_age) {
+void file_handler(int use_apf_v6_interpreter, uint8_t* program, uint32_t program_len,
+                  uint32_t ram_len, const char* filename, uint32_t filter_age_16384ths) {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcap;
     struct pcap_pkthdr apf_header;
@@ -218,8 +215,6 @@ void file_handler(int use_apf_v6_interpreter, uint8_t* program,
     const char dropped_file[] = "dropped.pcap";
     int pass = 0;
     int drop = 0;
-
-    double filter_age_16384ths = filter_age * 16384.0;
 
     pcap = pcap_open_offline(filename, errbuf);
     if (pcap == NULL) {
@@ -242,10 +237,10 @@ void file_handler(int use_apf_v6_interpreter, uint8_t* program,
         int result;
         if (use_apf_v6_interpreter) {
             result = apf_run_generic(6000, (uint32_t*)program, program_len, ram_len, apf_packet,
-                                     apf_header.len, (uint32_t)filter_age_16384ths);
+                                     apf_header.len, filter_age_16384ths);
         } else {
             result = apf_run_generic(4, (uint32_t*)program, program_len, ram_len, apf_packet,
-                                     apf_header.len, (uint32_t)filter_age_16384ths);
+                                     apf_header.len, filter_age_16384ths);
         }
 
         if (!result){
@@ -273,9 +268,9 @@ void print_usage(char* cmd) {
             "  --packet     Packet to run through program.\n"
             "  --data       Data memory contents, in hex.\n"
             "  --age        Age of program in seconds (default: 0).\n"
-            "  --trace      Enable APF interpreter debug tracing\n"
-            "  --v6         Use APF v6\n"
-            "  -c, --cnt    Print the APF counters\n"
+            "  --trace      Enable APF interpreter debug tracing.\n"
+            "  --v6         Use APF v6.\n"
+            "  -c, --cnt    Print the APF counters.\n"
             "  -h, --help   Show this message.\n",
             basename(cmd));
 }
@@ -287,7 +282,8 @@ int main(int argc, char* argv[]) {
     char* packet = NULL;
     uint8_t* data = NULL;
     uint32_t data_len = 0;
-    uint32_t filter_age = 0;
+    double filter_age_seconds = 0.0;
+    uint32_t filter_age_16384ths = 0;
     int print_counter_enabled = 0;
 
     int opt;
@@ -305,7 +301,7 @@ int main(int argc, char* argv[]) {
                     exit(1);
                 }
                 if (filename) {
-                    printf("Cannot use <file> with <packet> \n\'%s -h or --help\' "
+                    printf("Cannot use <file> with <packet>\n\'%s -h or --help\' "
                            "for more information\n", basename(argv[0]));
 
                     exit(1);
@@ -332,14 +328,10 @@ int main(int argc, char* argv[]) {
                 break;
             case OPT_AGE:
                 errno = 0;
-                filter_age = strtoul(optarg, &endptr, 10);
-                if ((errno == ERANGE && filter_age == UINT32_MAX) ||
-                    (errno != 0 && filter_age == 0)) {
-                    perror("Error on age option: strtoul");
-                    exit(1);
-                }
-                if (endptr == optarg) {
-                    printf("No digit found in age.\n");
+                filter_age_seconds = 0.0;
+                filter_age_seconds = strtod(optarg, NULL);
+                if (errno != 0 || filter_age_seconds <= 0.0) {
+                    perror("Filter age must be a positive number.\n");
                     exit(1);
                 }
                 break;
@@ -373,6 +365,12 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
+    if ((filter_age_seconds * 16384.0) > UINT32_MAX) {
+        printf("Filter age must not be exceptionally large.\n");
+        exit(1);
+    }
+    filter_age_16384ths = (uint32_t)(filter_age_seconds * 16384.0);
+
     // Combine the program and data into the unified APF buffer.
     uint32_t ram_len = program_len + data_len;
     if (use_apf_v6_interpreter) {
@@ -389,17 +387,17 @@ int main(int argc, char* argv[]) {
 
     if (filename)
         file_handler(use_apf_v6_interpreter, program, program_len, ram_len,
-                     filename, filter_age);
+                     filename, filter_age_16384ths);
     else
         packet_handler(use_apf_v6_interpreter, program, program_len, ram_len,
-                       packet, filter_age);
+                       packet, filter_age_16384ths);
 
     if (data_len) {
         printf("Data: ");
         print_hex(program + ram_len - data_len, data_len);
         printf("\n");
         if (print_counter_enabled) {
-          printf("APF packet counters: \n");
+          printf("APF packet counters:\n");
           print_counter(program + ram_len - data_len, data_len);
         }
     }
