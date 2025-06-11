@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+// Returns a zero-terminated array of (at least one) supported versions in increasing order.
+const uint32_t* apf_supported_versions();
+
 int apf_run_generic(const uint32_t apf_version,
                     uint32_t * const program,
                     const uint32_t program_len,
