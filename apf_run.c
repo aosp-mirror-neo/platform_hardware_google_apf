@@ -174,11 +174,11 @@ uint32_t get_counter_value(uint32_t apf_version, const uint8_t* data, int data_l
     }
     uint32_t value = 0;
     if (big_endian) {
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i <= 3; ++i) {
             value = value << 8 | data[data_len + neg_offset + i];
         }
     } else {
-        for (int i = 4; i >= 0; --i) {
+        for (int i = 3; i >= 0; --i) {
             value = value << 8 | data[data_len + neg_offset + i];
         }
     }
