@@ -1,0 +1,11 @@
+// Copyright 2025 The Android Open Source Project
+
+cc_binary {
+    name: "brcm_apf_tool",
+    srcs: ["brcm_apf_tool.c"],
+    shared_libs: ["libnl"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
