@@ -9,3 +9,13 @@ cc_binary {
         "-Werror",
     ],
 }
+
+cc_binary {
+    name: "qcom_apf_tool",
+    srcs: ["qcom_apf_tool.c"],
+    shared_libs: ["libnl"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
