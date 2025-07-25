@@ -4,18 +4,16 @@ cc_binary {
     name: "brcm_apf_tool",
     srcs: ["brcm_apf_tool.c"],
     shared_libs: ["libnl"],
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
 }
 
 cc_binary {
     name: "qcom_apf_tool",
     srcs: ["qcom_apf_tool.c"],
     shared_libs: ["libnl"],
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
+}
+
+cc_binary {
+    name: "apf_tool",
+    srcs: ["apf_tool.c"],
+    shared_libs: ["libnl"],
 }
