@@ -11,30 +11,33 @@ set -u
 declare -r NL='../../../../external/libnl'
 declare -r NLIB="${NL}/lib"
 
-aarch64-linux-gnu-gcc -static \
-  -D__unused='__attribute__((unused))' \
-  -D_GNU_SOURCE \
-  -I "${NL}/include" \
-  "${NLIB}/addr.c" \
-  "${NLIB}/attr.c" \
-  "${NLIB}/cache.c" \
-  "${NLIB}/cache_mngt.c" \
-  "${NLIB}/data.c" \
-  "${NLIB}/error.c" \
-  "${NLIB}/genl/ctrl.c" \
-  "${NLIB}/genl/family.c" \
-  "${NLIB}/genl/genl.c" \
-  "${NLIB}/genl/mngt.c" \
-  "${NLIB}/handlers.c" \
-  "${NLIB}/hash.c" \
-  "${NLIB}/hashtable.c" \
-  "${NLIB}/mpls.c" \
-  "${NLIB}/msg.c" \
-  "${NLIB}/nl.c" \
-  "${NLIB}/object.c" \
-  "${NLIB}/socket.c" \
-  "${NLIB}/utils.c" \
-  brcm_apf_tool.c -o brcm_apf_tool
+for vendor in brcm qcom; do
+  gcc -Wall -Werror -D__unused= -I/usr/include/libnl3 "${vendor}_apf_tool.c" -o "${vendor}_apf_tool.exe" -lnl-3 -lnl-genl-3
+  aarch64-linux-gnu-gcc -static \
+    -D__unused='__attribute__((unused))' \
+    -D_GNU_SOURCE \
+    -I "${NL}/include" \
+    "${NLIB}/addr.c" \
+    "${NLIB}/attr.c" \
+    "${NLIB}/cache.c" \
+    "${NLIB}/cache_mngt.c" \
+    "${NLIB}/data.c" \
+    "${NLIB}/error.c" \
+    "${NLIB}/genl/ctrl.c" \
+    "${NLIB}/genl/family.c" \
+    "${NLIB}/genl/genl.c" \
+    "${NLIB}/genl/mngt.c" \
+    "${NLIB}/handlers.c" \
+    "${NLIB}/hash.c" \
+    "${NLIB}/hashtable.c" \
+    "${NLIB}/mpls.c" \
+    "${NLIB}/msg.c" \
+    "${NLIB}/nl.c" \
+    "${NLIB}/object.c" \
+    "${NLIB}/socket.c" \
+    "${NLIB}/utils.c" \
+    "${vendor}_apf_tool.c" -o "${vendor}_apf_tool"
+done
 
 # /usr/lib/gcc-cross/aarch64-linux-gnu/14/../../../../aarch64-linux-gnu/bin/ld: /tmp/ccYCWTVb.o: in function `nl_addr_info':
 # addr.c:(.text+0x1410): warning: Using 'getaddrinfo' in statically linked applications requires at runtime the shared libraries from the glibc version used for linking
