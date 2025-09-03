@@ -444,12 +444,13 @@ int main(int argc, char* argv[]) {
     // Combine the program and data into the unified APF buffer.
     uint32_t ram_len = program_len + data_len;
     if (apf_version >= 6000) {
-       ram_len += 3;
-       ram_len &= ~3;
-        // APFv6 interpreter has 5 hardcoded counters.
-        if (data_len < (5 * 4)) ram_len += (5 * 4);
-        // APFv6.1 interpreter has one more hardcoded counter.
-        if (apf_version >= 6100 && data_len < (6 * 4)) ram_len += (1 * 4);
+        // Interpreter has hardcoded counters: 5 in v6, 6 in v6.1.
+        uint32_t min_data_len = ((apf_version >= 6100) ? 6 : 5) * sizeof(uint32_t);
+        if (data_len < min_data_len) {
+            ram_len += min_data_len - data_len;
+        }
+        ram_len += 3;
+        ram_len &= ~3;
     }
 
     if (data) {
@@ -468,7 +469,7 @@ int main(int argc, char* argv[]) {
         print_hex(program + ram_len - data_len, data_len);
         printf("\n");
         if (print_counter_enabled) {
-          printf("APF packet counters:");
+            printf("APF packet counters:");
             if (apf_version <= 2) {
                 printf(" not supported in this version\n");
             } else {
