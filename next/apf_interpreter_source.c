@@ -654,6 +654,7 @@ static int apf_runner(void* ctx, u32* const program, const u32 program_len,
         apf_ctx.mem.named.apf_version = apf_version();
         apf_ctx.mem.named.filter_age = filter_age_16384ths >> 14;
         apf_ctx.mem.named.filter_age_16384ths = filter_age_16384ths;
+        apf_ctx.mem.named.internal_state = 0;  // TODO: use proper value
 
         ret = do_apf_run(&apf_ctx);
         if (apf_ctx.tx_buf) do_discard_buffer(&apf_ctx);

@@ -93,7 +93,8 @@
  *    When the APF program begins execution, six of the sixteen memory slots
  *    are pre-filled by the interpreter with values that may be useful for
  *    programs:
- *      #0 to #7 are zero initialized.
+ *      #0 to #6 are zero initialized.
+ *      Slot #7  is reserved for internal state bitmask (currently always 0).
  *      Slot #8  is initialized with apf version (on APF >4).
  *      Slot #9  this is slot #15 with greater resolution (1/16384ths of a second)
  *      Slot #10 starts at zero, implicitly used as tx buffer output pointer.
@@ -139,7 +140,8 @@
 
 typedef union {
   struct {
-    u32 pad[8];               // 0..7
+    u32 pad[7];               // 0..6
+    u32 internal_state;       // 7:  Internal state bitmask (currently always 0).
     u32 apf_version;          // 8:  Initialized with apf_version()
     u32 filter_age_16384ths;  // 9:  Age since filter installed in 1/16384 seconds.
     u32 tx_buf_offset;        // 10: Offset in tx_buf where next byte will be written
