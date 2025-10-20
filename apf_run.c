@@ -47,37 +47,34 @@ static const char* counter_name [] = {
     "FILTER_AGE_16384THS",
     "APF_VERSION",
     "APF_PROGRAM_ID",
-    // The counter sequence should keep the same as ApfSessionInfoMetrics.java
-    "PASSED_ARP_BROADCAST_REPLY",
-    "PASSED_ARP_REQUEST",
-    "PASSED_ARP_UNICAST_REPLY",
-    "PASSED_DHCP",
-    "PASSED_ETHER_OUR_SRC_MAC",
-    "PASSED_IGMP_GENERAL_QUERY_REPLY_OVER_MTU",
-    "PASSED_IPV4",
-    "PASSED_IPV4_FROM_DHCPV4_SERVER",
-    "PASSED_IPV4_UNICAST",
-    "PASSED_IPV6_HOPOPTS",
-    "PASSED_IPV6_ICMP",
-    "PASSED_IPV6_MLD_GENERAL_QUERY_REPLY_OVER_MTU",
-    "PASSED_IPV6_NON_ICMP",
-    "PASSED_IPV6_UNICAST_NON_ICMP",
-    "PASSED_NON_IP_UNICAST",
-    "PASSED_MDNS",
-    "PASSED_RA",
+    // The following counters should be maintained in order matching ApfCounterTracker.java.
+    "DROPPED_802_3_FRAME",
+    "DROPPED_ARP_NON_IPV4",
+    "DROPPED_ARP_OTHER_HOST",
+    "DROPPED_ARP_REPLY_SPA_NO_HOST",
+    "DROPPED_ARP_REQUEST_REPLIED",
+    "DROPPED_ARP_UNKNOWN",
+    "DROPPED_ARP_V6_ONLY",
     "DROPPED_ETH_BROADCAST",
     "DROPPED_ETHER_OUR_SRC_MAC",
-    "DROPPED_RA",
-    "DROPPED_IPV4_L2_BROADCAST",
+    "DROPPED_ETHERTYPE_NOT_ALLOWED",
+    "DROPPED_GARP_REPLY",
+    "DROPPED_IGMP_INVALID",
+    "DROPPED_IGMP_REPORT",
+    "DROPPED_IGMP_V2_GENERAL_QUERY_REPLIED",
+    "DROPPED_IGMP_V3_GENERAL_QUERY_REPLIED",
     "DROPPED_IPV4_BROADCAST_ADDR",
     "DROPPED_IPV4_BROADCAST_NET",
     "DROPPED_IPV4_ICMP_INVALID",
+    "DROPPED_IPV4_KEEPALIVE_ACK",
+    "DROPPED_IPV4_L2_BROADCAST",
     "DROPPED_IPV4_MULTICAST",
+    "DROPPED_IPV4_NATT_KEEPALIVE",
     "DROPPED_IPV4_NON_DHCP4",
     "DROPPED_IPV4_PING_REQUEST_REPLIED",
+    "DROPPED_IPV4_TCP_PORT7_UNICAST",
     "DROPPED_IPV6_ICMP6_ECHO_REQUEST_INVALID",
     "DROPPED_IPV6_ICMP6_ECHO_REQUEST_REPLIED",
-    "DROPPED_IPV6_ROUTER_SOLICITATION",
     "DROPPED_IPV6_MLD_INVALID",
     "DROPPED_IPV6_MLD_REPORT",
     "DROPPED_IPV6_MLD_V1_GENERAL_QUERY_REPLIED",
@@ -87,25 +84,28 @@ static const char* counter_name [] = {
     "DROPPED_IPV6_NS_INVALID",
     "DROPPED_IPV6_NS_OTHER_HOST",
     "DROPPED_IPV6_NS_REPLIED_NON_DAD",
-    "DROPPED_802_3_FRAME",
-    "DROPPED_ETHERTYPE_NOT_ALLOWED",
-    "DROPPED_IPV4_KEEPALIVE_ACK",
-    "DROPPED_IPV4_NATT_KEEPALIVE",
+    "DROPPED_IPV6_ROUTER_SOLICITATION",
     "DROPPED_MDNS",
     "DROPPED_MDNS_REPLIED",
     "DROPPED_NON_UNICAST_TDLS",
-    "DROPPED_IPV4_TCP_PORT7_UNICAST",
-    "DROPPED_ARP_NON_IPV4",
-    "DROPPED_ARP_OTHER_HOST",
-    "DROPPED_ARP_REPLY_SPA_NO_HOST",
-    "DROPPED_ARP_REQUEST_REPLIED",
-    "DROPPED_ARP_UNKNOWN",
-    "DROPPED_ARP_V6_ONLY",
-    "DROPPED_IGMP_V2_GENERAL_QUERY_REPLIED",
-    "DROPPED_IGMP_V3_GENERAL_QUERY_REPLIED",
-    "DROPPED_IGMP_INVALID",
-    "DROPPED_IGMP_REPORT",
-    "DROPPED_GARP_REPLY"
+    "DROPPED_RA",
+    "PASSED_ARP_BROADCAST_REPLY",
+    "PASSED_ARP_REQUEST",
+    "PASSED_ARP_UNICAST_REPLY",
+    "PASSED_DHCP",
+    "PASSED_DUE_TO_REPLY_OVER_MTU",
+    "PASSED_ETHER_OUR_SRC_MAC",
+    "PASSED_IPV4",
+    "PASSED_IPV4_FROM_DHCPV4_SERVER",
+    "PASSED_IPV4_UNICAST",
+    "PASSED_IPV6_HOPOPTS",
+    "PASSED_IPV6_ICMP",
+    "PASSED_IPV6_NON_ICMP",
+    "PASSED_IPV6_UNICAST_NON_ICMP",
+    "PASSED_LOW_POWER_STANDBY_MAGIC_PACKET",
+    "PASSED_MDNS",
+    "PASSED_NON_IP_UNICAST",
+    "PASSED_RA"
 };
 
 enum {
@@ -444,12 +444,13 @@ int main(int argc, char* argv[]) {
     // Combine the program and data into the unified APF buffer.
     uint32_t ram_len = program_len + data_len;
     if (apf_version >= 6000) {
-       ram_len += 3;
-       ram_len &= ~3;
-        // APFv6 interpreter has 5 hardcoded counters.
-        if (data_len < (5 * 4)) ram_len += (5 * 4);
-        // APFv6.1 interpreter has one more hardcoded counter.
-        if (apf_version >= 6100 && data_len < (6 * 4)) ram_len += (1 * 4);
+        // Interpreter has hardcoded counters: 5 in v6, 6 in v6.1.
+        uint32_t min_data_len = ((apf_version >= 6100) ? 6 : 5) * sizeof(uint32_t);
+        if (data_len < min_data_len) {
+            ram_len += min_data_len - data_len;
+        }
+        ram_len += 3;
+        ram_len &= ~3;
     }
 
     if (data) {
@@ -468,7 +469,7 @@ int main(int argc, char* argv[]) {
         print_hex(program + ram_len - data_len, data_len);
         printf("\n");
         if (print_counter_enabled) {
-          printf("APF packet counters:");
+            printf("APF packet counters:");
             if (apf_version <= 2) {
                 printf(" not supported in this version\n");
             } else {
