@@ -455,8 +455,10 @@ int main(int argc, char* argv[]) {
         ram_len &= ~3;
     }
 
+    // program still points at program_len bytes of memory,
+    // but needs to point at ram_len bytes (with any data appended).
+    program = realloc(program, ram_len);
     if (data) {
-        program = realloc(program, ram_len);
         memcpy(program + ram_len - data_len, data, data_len);
         free(data);
     }
