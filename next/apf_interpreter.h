@@ -58,6 +58,16 @@ uint32_t apf_version(void);
 uint8_t* apf_allocate_tx_buffer(void* ctx, uint32_t size);
 
 /**
+ * Allocates a buffer for the APF program to build a packet to send to cpu.
+ *
+ * Exactly like apf_allocate_tx_buffer() but for ingress direction.
+ *
+ * May have the same implementation if the firmware does not care about
+ * using different portions of memory depending on direction.
+ */
+uint8_t* apf_allocate_rx_buffer(void* ctx, uint32_t size);
+
+/**
  * Transmits the allocated buffer and deallocates it.
  *
  * The apf_interpreter will not read/write from/to the buffer once it calls
@@ -88,6 +98,18 @@ uint8_t* apf_allocate_tx_buffer(void* ctx, uint32_t size);
  *         Returning an error will likely result in apf_run() returning PASS.
  */
 int apf_transmit_tx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
+
+/**
+ * Transmits (to the CPU) the allocated buffer and deallocates it.
+ *
+ * Exactly like apf_transmit_rx_buffer() but for ingress direction.
+ *
+ * May be delivered to the kernel driver via some out of band control path
+ * mechanism, and injected as a received packet.
+ *
+ * dscp is not expected to be useful, but provided to mirror tx.
+ */
+int apf_transmit_rx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
 
 /**
  * Runs an APF program over a packet.
