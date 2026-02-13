@@ -25,11 +25,20 @@
 typedef struct packet_buffer {
     uint8_t data[BUFFER_SIZE];
     uint32_t len;
+    bool ingress;
     struct packet_buffer *next;
 } packet_buffer;
 
 extern packet_buffer *head;
 extern packet_buffer *tail;
 extern uint8_t apf_test_tx_dscp;
+
+uint8_t* apf_allocate_rx_buffer(void* ctx, uint32_t size);
+uint8_t* apf_allocate_tx_buffer(void* ctx, uint32_t size);
+uint8_t* apf_allocate_buffer(void* ctx, uint32_t size);
+
+int apf_transmit_rx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
+int apf_transmit_tx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
+int apf_transmit_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
 
 #endif  // TEST_BUF_ALLOCATOR

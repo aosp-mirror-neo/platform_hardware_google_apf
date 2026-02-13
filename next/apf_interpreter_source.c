@@ -89,7 +89,7 @@ typedef struct {
 } apf_context;
 
 FUNC(int do_transmit_buffer(apf_context* ctx, u32 pkt_len, u8 dscp)) {
-    int ret = apf_transmit_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
+    int ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
     ctx->tx_buf = NULL;
     ctx->tx_buf_len = 0;
     return ret;
@@ -391,7 +391,7 @@ static int do_apf_run(apf_context* ctx) {
                 }
                 // checksumming functions require minimum 266 byte buffer for correctness
                 if (ctx->tx_buf_len < 266) ctx->tx_buf_len = 266;
-                ctx->tx_buf = apf_allocate_buffer(ctx->caller_ctx, ctx->tx_buf_len);
+                ctx->tx_buf = apf_allocate_tx_buffer(ctx->caller_ctx, ctx->tx_buf_len);
                 if (!ctx->tx_buf) {  // allocate failure
                     ctx->tx_buf_len = 0;
                     counter[-3]++;

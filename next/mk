@@ -33,7 +33,7 @@ declare -ar FLAGS=(
 # t=armv8.1-m.main  #2924 0             0                     0
 arm-linux-gnueabi-gcc -march="${t}" "${FLAGS[@]}" apf_interpreter.c -c -o apf_interpreter.armt.o
 # This dumps external calls:
-#   llvm-objdump -d -r apf_interpreter.armt.o | grep -E --color=yes -A1 'f7ff fffe' | grep -E R_ARM_THM_CALL | grep -Ev $'\t(memcmp|memcpy|memset|apf_allocate_buffer|apf_transmit_buffer|apf_internal_[_a-z]+)$' || :
+#   llvm-objdump -d -r apf_interpreter.armt.o | grep -E --color=yes -A1 'f7ff fffe' | grep -E R_ARM_THM_CALL | grep -Ev $'\t(memcmp|memcpy|memset|apf_allocate_tx_buffer|apf_transmit_tx_buffer|apf_internal_[_a-z]+)$' || :
 
 arm-linux-gnueabi-gcc "${FLAGS[@]}" apf_interpreter.c -c -o apf_interpreter.arm.o
 aarch64-linux-gnu-gcc "${FLAGS[@]}" apf_interpreter.c -c -o apf_interpreter.aarch64.o

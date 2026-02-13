@@ -45,7 +45,7 @@ uint32_t apf_version(void);
  *
  * The firmware MAY choose to allocate a larger buffer than requested, and
  * give the apf_interpreter a pointer to the middle of the buffer. This will
- * allow firmware to later (during or after apf_transmit_buffer call) populate
+ * allow firmware to later (during or after apf_transmit_tx_buffer call) populate
  * any required headers, trailers, etc.
  *
  * @param ctx - unmodified ctx pointer passed into apf_run().
@@ -55,7 +55,17 @@ uint32_t apf_version(void);
  *         pending transmit. Returning NULL will most likely result in
  *         apf_run() returning PASS.
  */
-uint8_t* apf_allocate_buffer(void* ctx, uint32_t size);
+uint8_t* apf_allocate_tx_buffer(void* ctx, uint32_t size);
+
+/**
+ * Allocates a buffer for the APF program to build a packet to send to cpu.
+ *
+ * Exactly like apf_allocate_tx_buffer() but for ingress direction.
+ *
+ * May have the same implementation if the firmware does not care about
+ * using different portions of memory depending on direction.
+ */
+uint8_t* apf_allocate_rx_buffer(void* ctx, uint32_t size);
 
 /**
  * Transmits the allocated buffer and deallocates it.
@@ -72,12 +82,12 @@ uint8_t* apf_allocate_buffer(void* ctx, uint32_t size);
  * queue is full, then it is OK for the packet to be dropped. The firmware should
  * prefer to fail allocation if it can predict transmit will fail.
  *
- * apf_transmit_buffer() may be asynchronous, which means the actual packet
+ * apf_transmit_tx_buffer() may be asynchronous, which means the actual packet
  * transmission can happen sometime after the function returns.
  *
  * @param ctx - unmodified ctx pointer passed into apf_run().
  * @param ptr - pointer to the transmit buffer, must have been previously
- *              returned by apf_allocate_buffer() and not deallocated.
+ *              returned by apf_allocate_tx_buffer() and not deallocated.
  * @param len - the number of bytes to be transmitted (possibly less than
  *              the allocated buffer), 0 means don't transmit the buffer
  *              but only deallocate it.
@@ -87,14 +97,26 @@ uint8_t* apf_allocate_buffer(void* ctx, uint32_t size);
  *         the transmit succeeded or the firmware thinks it will succeed.
  *         Returning an error will likely result in apf_run() returning PASS.
  */
-int apf_transmit_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
+int apf_transmit_tx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
+
+/**
+ * Transmits (to the CPU) the allocated buffer and deallocates it.
+ *
+ * Exactly like apf_transmit_rx_buffer() but for ingress direction.
+ *
+ * May be delivered to the kernel driver via some out of band control path
+ * mechanism, and injected as a received packet.
+ *
+ * dscp is not expected to be useful, but provided to mirror tx.
+ */
+int apf_transmit_rx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
 
 /**
  * Runs an APF program over a packet.
  *
  * The return value of apf_run indicates whether the packet should
  * be passed or dropped. As a part of apf_run() execution, the APF
- * program can call apf_allocate_buffer()/apf_transmit_buffer() to construct
+ * program can call apf_allocate_tx_buffer()/apf_transmit_tx_buffer() to construct
  * a reply packet and transmit it.
  *
  * The text section containing the program instructions starts at address
@@ -109,7 +131,7 @@ int apf_transmit_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
  * @param ctx - pointer to any additional context required for allocation and transmit.
  *              May be NULL if no such context is required. This is opaque to
  *              the interpreter and will be passed through unmodified
- *              to apf_allocate_buffer() and apf_transmit_buffer() calls.
+ *              to apf_allocate_tx_buffer() and apf_transmit_tx_buffer() calls.
  * @param program - the program bytecode, followed by the writable data region.
  *                  Note: this *MUST* be a 4 byte aligned region.
  * @param program_len - the length in bytes of the read-only portion of the APF
