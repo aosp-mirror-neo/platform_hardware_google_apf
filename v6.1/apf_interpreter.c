@@ -16,12 +16,19 @@
 
 #include "apf_interpreter.h"
 
-#include <string.h>  /* For memcmp, memcpy, memset */
-
-#if __GNUC__ >= 7 || __clang__
-#define FALLTHROUGH __attribute__((fallthrough))
+#ifdef __KERNEL__
+  #include <linux/string.h>  /* For memcmp, memcpy, memset */
+  #include <linux/compiler.h>
+  #define FOR_KERNEL(v) EXPORT_SYMBOL(v);
+  #define FALLTHROUGH fallthrough
 #else
-#define FALLTHROUGH
+  #include <string.h>  /* For memcmp, memcpy, memset */
+  #define FOR_KERNEL(v)
+  #if __GNUC__ >= 7 || __clang__
+    #define FALLTHROUGH __attribute__((fallthrough))
+  #else
+    #define FALLTHROUGH
+  #endif
 #endif
 
 typedef enum { False, True } Boolean;
@@ -670,6 +677,7 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
 u32 apf_version(void) {
     return 6100;
 }
+FOR_KERNEL(apf_version)
 
 typedef struct {
     /* Note: the following 4 fields take up exactly 8 bytes. */
@@ -1288,3 +1296,4 @@ int apf_run(void* ctx, u32* const program, const u32 program_len,
 
     return apf_runner(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 }
+FOR_KERNEL(apf_run)

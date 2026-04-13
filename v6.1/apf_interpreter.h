@@ -17,7 +17,11 @@
 #ifndef APF_INTERPRETER_V61_H_
 #define APF_INTERPRETER_V61_H_
 
-#include <stdint.h>
+#ifdef __KERNEL__
+  #include <linux/types.h>
+#else
+  #include <stdint.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
