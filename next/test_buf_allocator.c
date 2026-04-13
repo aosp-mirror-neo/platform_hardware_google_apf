@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "apf_interpreter.h"
 #include "test_buf_allocator.h"
@@ -33,7 +34,7 @@ uint8_t apf_test_tx_dscp;
  * Allocate a new buffer and attach next to the current buffer, then move the current to it.
  * Return the pointer to beginning of the allocated buffer region.
  */
-static uint8_t* do_apf_allocate_buffer(__attribute__ ((unused)) struct apf_fw_ctx *ctx, uint32_t size, bool ingress) {
+static uint8_t *do_apf_allocate_buffer(__attribute__ ((unused)) struct apf_fw_ctx *ctx, uint32_t size, bool ingress) {
   if (size > BUFFER_SIZE) {
     return NULL;
   }
@@ -62,15 +63,15 @@ static uint8_t* do_apf_allocate_buffer(__attribute__ ((unused)) struct apf_fw_ct
   return ptr->data;
 }
 
-uint8_t* apf_allocate_rx_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
+uint8_t *apf_allocate_rx_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
   return do_apf_allocate_buffer(ctx, size, /*ingress*/true);
 }
 
-uint8_t* apf_allocate_tx_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
+uint8_t *apf_allocate_tx_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
   return do_apf_allocate_buffer(ctx, size, /*ingress*/false);
 }
 
-uint8_t* apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
+uint8_t *apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
   return apf_allocate_tx_buffer(ctx, size);
 }
 
@@ -101,4 +102,31 @@ int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, u
 
 int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {
   return apf_transmit_tx_buffer(ctx, ptr, len, dscp);
+}
+
+void *apf_allocate_state(__attribute__((unused)) struct apf_fw_ctx *ctx, uint32_t size) {
+  return malloc(size);
+}
+
+void apf_free_state(__attribute__((unused)) struct apf_fw_ctx *ctx, void *ptr, __attribute__((unused)) uint32_t size) {
+  free(ptr);
+}
+
+uint32_t apf_get_time_in_ticks(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts)) abort();
+
+  // Convert to 1/16384ths of a second
+  uint64_t ticks = (uint64_t)ts.tv_sec * 16384;
+  ticks += ((uint64_t)ts.tv_nsec * 16384) / 1000000000ULL;
+  return (uint32_t)ticks;
+}
+
+void apf_set_timer(__attribute__((unused)) uint32_t relative_ticks, __attribute__((unused)) uint32_t precision_ticks) {
+}
+
+void apf_global_lock(void) {
+}
+
+void apf_global_unlock(void) {
 }

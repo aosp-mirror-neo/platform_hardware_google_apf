@@ -14,15 +14,81 @@
  * limitations under the License.
  */
 
+#ifdef __KERNEL__
+  #include <linux/stddef.h>  // For offsetof
+  #include <linux/string.h>  // For memcmp, memcpy, memset
+  #include <linux/compiler.h>
+#else
+  #include <stddef.h>  // For offsetof
+  #include <string.h>  // For memcmp, memcpy, memset
+#endif
+
 #include "apf_interpreter.h"
 
+#ifndef APF_LOCK
+static inline void apf_global_lock(void) {};
+static inline void apf_global_unlock(void) {};
+#endif
+
+// C99 static assert, replace with _Static_assert() when we switch to C11.
+#define APF_STATIC_ASSERT_CONCAT_INNER(a, b) a##b
+#define APF_STATIC_ASSERT_CONCAT(a, b) APF_STATIC_ASSERT_CONCAT_INNER(a, b)
+#define APF_STATIC_ASSERT(cond) \
+    typedef char APF_STATIC_ASSERT_CONCAT(static_assertion_, __LINE__)[(cond) ? 1 : -1]
+
+// Verify requirements of apf_interpreter.h
+#ifndef APF_MEMORY_ALLOCATION_GRANULARITY
+#error "APF_MEMORY_ALLOCATION_GRANULARITY undefined"
+#endif
+
+#if APF_MEMORY_ALLOCATION_GRANULARITY < 4
+#error "APF_MEMORY_ALLOCATION_GRANULARITY must be at least 4"
+#endif
+
+#if APF_MEMORY_ALLOCATION_GRANULARITY > 256
+#error "APF_MEMORY_ALLOCATION_GRANULARITY must be at most 256"
+#endif
+
+#if APF_MEMORY_ALLOCATION_GRANULARITY & (APF_MEMORY_ALLOCATION_GRANULARITY - 1)
+#error "APF_MEMORY_ALLOCATION_GRANULARITY must be a power of two"
+#endif
+
+// Verify APF_MEMORY_ALLOCATION_GRANULARITY is a multiple of alignof(uint64_t) via offsetof trick
+struct apf_u64_align_check { char c; uint64_t v; };
+APF_STATIC_ASSERT(!(APF_MEMORY_ALLOCATION_GRANULARITY % offsetof(struct apf_u64_align_check, v)));
+
+// Verify APF_MEMORY_ALLOCATION_GRANULARITY is a multiple of alignof(void*) via offsetof trick
+struct apf_ptr_align_check { char c; void *v; };
+APF_STATIC_ASSERT(!(APF_MEMORY_ALLOCATION_GRANULARITY % offsetof(struct apf_ptr_align_check, v)));
+
+#ifndef APF_STATE_MEMORY_TOTAL_LIMIT
+#error "APF_STATE_MEMORY_TOTAL_LIMIT undefined"
+#endif
+
+#if APF_STATE_MEMORY_TOTAL_LIMIT < 8192
+#error "APF_STATE_MEMORY_TOTAL_LIMIT must be at least 8192"
+#endif
+
+#if APF_STATE_MEMORY_TOTAL_LIMIT > 1048576
+#error "APF_STATE_MEMORY_TOTAL_LIMIT must be at most 1048576"
+#endif
+
+#if APF_DEBUG == 0
+#undef APF_DEBUG
+#endif
+
+#if APF_TICKS_PER_SECOND_LOG2 != 14
+#error "APF_TICKS_PER_SECOND_LOG2 must be 14"
+#endif
+
+#if APF_TICKS_PER_SECOND != 16384
+#error "APF_TICKS_PER_SECOND must be 16384"
+#endif
+
 #ifdef __KERNEL__
-  #include <linux/string.h>  /* For memcmp, memcpy, memset */
-  #include <linux/compiler.h>
   #define FOR_KERNEL(v) EXPORT_SYMBOL(v);
   #define FALLTHROUGH fallthrough
 #else
-  #include <string.h>  // For memcmp, memcpy, memset
   #define FOR_KERNEL(v)
   #if __GNUC__ >= 7 || __clang__
     #define FALLTHROUGH __attribute__((fallthrough))
@@ -36,6 +102,8 @@
 #include "apf_utils.h"
 #include "apf_dns.h"
 #include "apf_checksum.h"
+
+#define APF_VERSION 20260420
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK
@@ -61,10 +129,24 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
 // superfluous ">= 0" with unsigned expressions generates compile warnings.
 #define ENFORCE_UNSIGNED(c) ((c)==(u32)(c))
 
-u32 apf_version(void) {
-    return 20250228;
-}
-FOR_KERNEL(apf_version)
+static u32 apf_id = 0;
+static u32 apf_used_ram = 0;
+
+static struct apf_state *apf_state_list_head = NULL;
+
+struct apf_state {
+    struct apf_state *next;
+    struct apf_state *prev;
+    struct apf_fw_ctx *ctx;
+    u32 ram_size;
+    u32 next_timer_abs;
+    u32 timer_precision;
+    u32 program_len;
+    bool suspended;
+    bool timer_set;
+    u8 pad[2];
+    u8 ram[];
+};
 
 typedef struct {
     // Note: the following 4 fields take up exactly 8 bytes.
@@ -87,6 +169,274 @@ typedef struct {
     memory_type mem;   // Memory slot values.  (array of u32s)
     // Note: any extra u16s go here, then u8s
 } apf_context;
+
+// The APF ram section immediately follows the apf_state struct.
+// This static assert ensures that the ram section is u32 aligned.
+APF_STATIC_ASSERT(!(sizeof(struct apf_state) % sizeof(u32)));
+
+void apf_get_info(struct apf_info *info) {
+    if (!info) return;
+    apf_global_lock();
+    info->apf_version = APF_VERSION;
+    info->apf_id = apf_id;
+    info->total_ram = APF_STATE_MEMORY_TOTAL_LIMIT;
+    info->used_ram = apf_used_ram;
+    info->overhead = sizeof(struct apf_state);
+    info->granularity = APF_MEMORY_ALLOCATION_GRANULARITY;
+    apf_global_unlock();
+}
+FOR_KERNEL(apf_get_info)
+
+void apf_set_id(u32 id) {
+    apf_global_lock();
+    apf_id = id;
+    apf_global_unlock();
+}
+FOR_KERNEL(apf_set_id)
+
+struct apf_state *apf_enable(struct apf_fw_ctx *ctx, u32 ram_size) {
+    if (ram_size > 65535) return NULL;
+    if (ram_size > APF_STATE_MEMORY_TOTAL_LIMIT) return NULL;
+
+    u32 total_size = sizeof(struct apf_state) + ram_size;
+
+    // Round up total_size to a multiple of APF_MEMORY_ALLOCATION_GRANULARITY.
+    // This is required by apf_allocate_state() and ensures we use all allocated memory.
+    total_size += APF_MEMORY_ALLOCATION_GRANULARITY - 1;
+    total_size &= ~(u32)(APF_MEMORY_ALLOCATION_GRANULARITY - 1);
+
+    // We recalculate how much actual space we'll have for ram post round-up.
+    ram_size = total_size - sizeof(struct apf_state);
+
+    apf_global_lock();
+    if (apf_used_ram + total_size > APF_STATE_MEMORY_TOTAL_LIMIT) {
+        apf_global_unlock();
+        return NULL;
+    }
+    apf_used_ram += total_size;
+    apf_global_unlock();
+
+    struct apf_state *state = apf_allocate_state(ctx, total_size);
+    if (!state) {
+        apf_global_lock();
+        apf_used_ram -= total_size;
+        apf_global_unlock();
+        return NULL;
+    }
+
+    memset(state, 0, total_size);
+
+    state->ctx = ctx;
+    state->ram_size = ram_size;
+    // state->suspended = false;
+    // state->timer_set = false;
+    // state->next_timer_abs = 0;
+    // state->timer_precision = 0;
+    // state->program_len = 0;
+    // memset(state->ram, 0, state->ram_size);
+
+    apf_global_lock();
+    // state->prev = NULL;
+    state->next = apf_state_list_head;
+    if (apf_state_list_head) apf_state_list_head->prev = state;
+    apf_state_list_head = state;
+    apf_global_unlock();
+
+    return state;
+}
+FOR_KERNEL(apf_enable)
+
+uint32_t apf_get_ram_size(const struct apf_state *state) {
+    return state ? state->ram_size : 0;
+}
+FOR_KERNEL(apf_get_ram_size)
+
+// TODO - think about what this should return
+int apf_read(const struct apf_state *state, u32 offset, u8 *buf, u32 length) {
+    if (!state) return -1;
+    if (!buf) return -1;
+    if (offset + length < offset) return -1;
+    if (offset + length > state->ram_size) return -1;
+    memcpy(buf, &state->ram[offset], length);
+    return 0;
+}
+FOR_KERNEL(apf_read)
+
+// TODO - think about what this should return
+int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
+    if (!state) return -1;
+    if (!buf) return -1;
+    if (offset < -1) return -1;  // not yet handled
+    if (offset == -1) {
+        if (length > state->ram_size) return -1;
+        state->program_len = 0;  // TODO maybe only ifdef APF_LOCK
+        memcpy(state->ram, buf, length);
+        state->program_len = length;
+        return 0;
+    }
+    if ((u32)offset + length < (u32)offset) return -1;
+    if ((u32)offset + length > state->ram_size) return -1;
+    memcpy(&state->ram[offset], buf, length);
+    return 0;
+}
+FOR_KERNEL(apf_write)
+
+static bool apf_global_timer_set = false;
+static u32 apf_global_next_timer_abs = 0;
+static u32 apf_global_timer_precision = 0;
+
+static u32 do_apf_ticks_until_next_timer_event(u32 *precision) {
+    if (!apf_global_timer_set) {
+        if (precision) *precision = 0;
+        return 0xFFFFFFFF;
+    }
+
+    u32 current_time = apf_get_time_in_ticks();
+    s32 diff = (s32)(apf_global_next_timer_abs - current_time);
+
+    if (precision) *precision = apf_global_timer_precision;
+
+    if (diff <= 0) return 0;
+    return (u32)diff;
+}
+
+u32 apf_ticks_until_next_timer_event(u32 *precision) {
+    apf_global_lock();
+    u32 ret = do_apf_ticks_until_next_timer_event(precision);
+    apf_global_unlock();
+    return ret;
+}
+FOR_KERNEL(apf_ticks_until_next_timer_event)
+
+// Assumes times a and b are not too far (~1.51 days) apart
+static bool before(u32 a, u32 b) {
+    return (s32)(a - b) < 0;
+}
+
+// TODO: needs another thorough code review
+static void apf_recalculate_global_timer(void) {
+    bool any_timer_set = false;
+    u32 timer_abs = 0;
+    u32 precision = 0xFFFFFFFF;
+
+    apf_global_lock();
+    for (struct apf_state *state = apf_state_list_head; state; state = state->next) {
+        if (!state->timer_set) continue;
+
+        if (!any_timer_set) {
+            any_timer_set = true;
+            timer_abs = state->next_timer_abs;
+            precision = state->timer_precision;
+        } else {
+            if (before(state->next_timer_abs + state->timer_precision, timer_abs + precision)) {
+                precision = state->next_timer_abs + state->timer_precision - timer_abs;
+            }
+
+            if (before(state->next_timer_abs, timer_abs)) timer_abs = state->next_timer_abs;
+        }
+    }
+
+    if (any_timer_set) {
+        bool need_to_arm = !apf_global_timer_set
+            || (apf_global_next_timer_abs != timer_abs)
+            || (apf_global_timer_precision != precision);
+
+        apf_global_timer_set = any_timer_set;
+        apf_global_next_timer_abs = timer_abs;
+        apf_global_timer_precision = precision;
+
+        if (need_to_arm) {
+            u32 current_time = apf_get_time_in_ticks();
+            s32 diff = (s32)(timer_abs - current_time);
+            if (diff < 0) diff = 0;
+
+            apf_global_unlock();
+            apf_set_timer((u32)diff, precision);
+            return;
+        }
+    } else {
+        if (apf_global_timer_set) {
+            apf_global_timer_set = false;
+            apf_global_unlock();
+            // TODO: maybe don't call just store to global or return this?
+            // then this function can be called with lock held
+            apf_set_timer(0xFFFFFFFF, 0);
+            return;
+        }
+    }
+    apf_global_unlock();
+}
+
+void apf_disable(struct apf_state *state) {
+    if (!state) return;
+
+    u32 total_size = sizeof(struct apf_state) + state->ram_size;
+    struct apf_fw_ctx *ctx = state->ctx;
+
+    apf_global_lock();
+    if (state->prev) {
+        state->prev->next = state->next;
+    } else {
+        apf_state_list_head = state->next;
+    }
+    if (state->next) state->next->prev = state->prev;
+
+    apf_used_ram -= total_size;
+    apf_global_unlock();
+
+    apf_free_state(ctx, state, total_size);
+
+    apf_recalculate_global_timer();
+}
+FOR_KERNEL(apf_disable)
+
+void apf_suspend(struct apf_state *state) {
+    if (!state) return;
+    if (state->suspended) return;
+    state->suspended = true;
+    // TODO: may need to call into bytecode and/or recalculate timers
+}
+FOR_KERNEL(apf_suspend)
+
+void apf_resume(struct apf_state *state) {
+    if (!state) return;
+    if (!state->suspended) return;
+    state->suspended = false;
+    // TODO: may need to call into bytecode and/or recalculate timers
+}
+FOR_KERNEL(apf_resume)
+
+// TODO: require lock to be held when called
+static bool do_apf_process_timer_event(u32 current_time) {
+    apf_global_lock();
+    for (struct apf_state *state = apf_state_list_head; state; state = state->next) {
+        if (!state->timer_set) continue;
+
+        // If the next timer is in the future (accounting for wrap-around), stop processing.
+        if (before(current_time, state->next_timer_abs)) continue;
+
+        // TODO: Implement the actual trigger timer logic for 'state' here.
+        // For example, executing a specific APF handler or program.
+
+        // Clear the timer for this state to prevent an infinite loop.
+        // The APF program is responsible for setting a new timer if needed.
+        state->timer_set = false;
+        apf_global_unlock();
+        return true;
+    }
+    apf_global_unlock();
+    apf_recalculate_global_timer();
+    return false;
+}
+
+bool apf_process_timer_event(void) {
+    u32 current_time = apf_get_time_in_ticks();
+    // TODO: apf_global_lock();
+    bool v = do_apf_process_timer_event(current_time);
+    // TODO: apf_global_unlock();
+    return v;
+}
+FOR_KERNEL(apf_process_timer_event)
 
 static inline int do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp) {
     int ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
@@ -642,7 +992,7 @@ static int apf_runner(struct apf_fw_ctx *ctx, u32 *const program, const u32 prog
                 .program_size = program_len,
                 .ram_len = ram_len,
                 .packet_size = packet_len,
-                .apf_version = apf_version(),
+                .apf_version = APF_VERSION,
                 .filter_age = filter_age_16384ths >> 14,
                 .filter_age_16384ths = filter_age_16384ths,
                 .internal_state = 0 // TODO: use proper value

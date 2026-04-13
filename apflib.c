@@ -36,11 +36,31 @@
 #undef apf_run
 #undef apf_version  // returns 6100
 
+#define apf_get_info apfnext__apf_get_info
+#define apf_set_id apfnext__apf_set_id
+#define apf_enable apfnext__apf_enable
+#define apf_get_ram_size apfnext__apf_get_ram_size
+#define apf_read apfnext__apf_read
+#define apf_write apfnext__apf_write
+#define apf_disable apfnext__apf_disable
+#define apf_suspend apfnext__apf_suspend
+#define apf_resume apfnext__apf_resume
+#define apf_ticks_until_next_timer_event apfnext__apf_ticks_until_next_timer_event
+#define apf_process_timer_event apfnext__apf_process_timer_event
 #define apf_run apfnext__apf_run
-#define apf_version apfnext__apf_version
 #include <next/apf_interpreter.h>
+#undef apf_get_info
+#undef apf_set_id
+#undef apf_enable
+#undef apf_get_ram_size
+#undef apf_read
+#undef apf_write
+#undef apf_disable
+#undef apf_suspend
+#undef apf_resume
+#undef apf_ticks_until_next_timer_event
+#undef apf_process_timer_event
 #undef apf_run
-#undef apf_version
 
 #include "apflib.h"
 
@@ -53,7 +73,11 @@ const uint32_t* apf_supported_versions() {
     versions[2] = 4;
     versions[3] = apfv6__apf_version();
     versions[4] = apfv61__apf_version();
-    versions[5] = apfnext__apf_version();
+
+    struct apf_info info = {};
+    apfnext__apf_get_info(&info);
+    versions[5] = info.apf_version;
+
     versions[6] = 0; // zero terminator
     return versions;
 }

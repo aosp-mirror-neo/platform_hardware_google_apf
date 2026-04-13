@@ -39,7 +39,7 @@ extern uint8_t apf_test_tx_dscp;
 // declarations of functions used/needed by 'next' interpreter will
 // come from our inclusion of next/apf_interpreter.h
 struct apf_fw_ctx;
-uint8_t* apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size);
+uint8_t *apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size);
 int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp);
 
 #endif  // TEST_BUF_ALLOCATOR
