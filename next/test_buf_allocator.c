@@ -33,12 +33,12 @@ uint8_t apf_test_tx_dscp;
  * Allocate a new buffer and attach next to the current buffer, then move the current to it.
  * Return the pointer to beginning of the allocated buffer region.
  */
-static uint8_t* do_apf_allocate_buffer(__attribute__ ((unused)) void* ctx, uint32_t size, bool ingress) {
+static uint8_t* do_apf_allocate_buffer(__attribute__ ((unused)) struct apf_fw_ctx *ctx, uint32_t size, bool ingress) {
   if (size > BUFFER_SIZE) {
     return NULL;
   }
 
-  packet_buffer* ptr = (packet_buffer *) malloc(sizeof(packet_buffer));
+  packet_buffer *ptr = (packet_buffer *) malloc(sizeof(packet_buffer));
   if (!ptr) {
     fprintf(stderr, "failed to allocate buffer!\n");
     return NULL;
@@ -62,15 +62,15 @@ static uint8_t* do_apf_allocate_buffer(__attribute__ ((unused)) void* ctx, uint3
   return ptr->data;
 }
 
-uint8_t* apf_allocate_rx_buffer(void* ctx, uint32_t size) {
+uint8_t* apf_allocate_rx_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
   return do_apf_allocate_buffer(ctx, size, /*ingress*/true);
 }
 
-uint8_t* apf_allocate_tx_buffer(void* ctx, uint32_t size) {
+uint8_t* apf_allocate_tx_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
   return do_apf_allocate_buffer(ctx, size, /*ingress*/false);
 }
 
-uint8_t* apf_allocate_buffer(void* ctx, uint32_t size) {
+uint8_t* apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
   return apf_allocate_tx_buffer(ctx, size);
 }
 
@@ -80,7 +80,7 @@ uint8_t* apf_allocate_buffer(void* ctx, uint32_t size) {
  * This is a reference apf_transmit_buffer() implementation for testing purpose.
  * Update the buffer length and dscp value from the transmit packet.
  */
-static int do_apf_transmit_buffer(__attribute__((unused)) void* ctx, uint8_t* ptr,
+static int do_apf_transmit_buffer(__attribute__((unused)) struct apf_fw_ctx *ctx, uint8_t *ptr,
                            uint32_t len, uint8_t dscp, bool ingress) {
   if (len && len < ETH_HLEN) return -1;
   if (!tail || (ptr != tail->data)) return -1;
@@ -91,14 +91,14 @@ static int do_apf_transmit_buffer(__attribute__((unused)) void* ctx, uint8_t* pt
   return 0;
 }
 
-int apf_transmit_rx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp) {
+int apf_transmit_rx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {
   return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/true);
 }
 
-int apf_transmit_tx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp) {
+int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {
   return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/false);
 }
 
-int apf_transmit_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp) {
+int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {
   return apf_transmit_tx_buffer(ctx, ptr, len, dscp);
 }

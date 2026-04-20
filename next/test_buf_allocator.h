@@ -33,12 +33,13 @@ extern packet_buffer *head;
 extern packet_buffer *tail;
 extern uint8_t apf_test_tx_dscp;
 
-uint8_t* apf_allocate_rx_buffer(void* ctx, uint32_t size);
-uint8_t* apf_allocate_tx_buffer(void* ctx, uint32_t size);
-uint8_t* apf_allocate_buffer(void* ctx, uint32_t size);
-
-int apf_transmit_rx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
-int apf_transmit_tx_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
-int apf_transmit_buffer(void* ctx, uint8_t* ptr, uint32_t len, uint8_t dscp);
+// due to -Wmissing-prototype we need to declare these functions which
+// older (than next) interpreters need at link time
+//
+// declarations of functions used/needed by 'next' interpreter will
+// come from our inclusion of next/apf_interpreter.h
+struct apf_fw_ctx;
+uint8_t* apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size);
+int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp);
 
 #endif  // TEST_BUF_ALLOCATOR

@@ -689,7 +689,7 @@ typedef struct {
     u32 pc;            /* Program counter. */
     /* All the pointers should be next to each other for better struct packing. */
     /* We are at offset 8, so even 64-bit pointers will not need extra padding. */
-    void *caller_ctx;  /* Passed in to interpreter, passed through to alloc/transmit. */
+    struct apf_fw_ctx *caller_ctx; /* Passed in to interpreter, passed through to alloc/transmit. */
     u8* tx_buf;        /* The output buffer pointer */
     u8* program;       /* Pointer to program/data buffer */
     const u8* packet;  /* Pointer to input packet buffer */
@@ -703,20 +703,20 @@ typedef struct {
     /* Note: any extra u16s go here, then u8s */
 } apf_context;
 
-FUNC(int apf_internal_do_transmit_buffer(apf_context* ctx, u32 pkt_len, u8 dscp)) {
+FUNC(int apf_internal_do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp)) {
     int ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
     ctx->tx_buf = NULL;
     ctx->tx_buf_len = 0;
     return ret;
 }
 
-static int do_discard_buffer(apf_context* ctx) {
+static int do_discard_buffer(apf_context *ctx) {
     return apf_internal_do_transmit_buffer(ctx, 0 /* pkt_len */, 0 /* dscp */);
 }
 
 #define DECODE_U8() (ctx->program[ctx->pc++])
 
-static u16 decode_be16(apf_context* ctx) {
+static u16 decode_be16(apf_context *ctx) {
     u16 v = DECODE_U8();
     v <<= 8;
     v |= DECODE_U8();
@@ -726,18 +726,18 @@ static u16 decode_be16(apf_context* ctx) {
 /* Decode an immediate, lengths [0..4] all work, does not do range checking. */
 /* But note that program is at least 20 bytes shorter than ram, so first few */
 /* immediates can always be safely decoded without exceeding ram buffer. */
-static u32 decode_imm(apf_context* ctx, u32 length) {
+static u32 decode_imm(apf_context *ctx, u32 length) {
     u32 i, v = 0;
     for (i = 0; i < length; ++i) v = (v << 8) | DECODE_U8();
     return v;
 }
 
 /* Warning: 'ofs' should be validated by caller! */
-static u8 read_packet_u8(apf_context* ctx, u32 ofs) {
+static u8 read_packet_u8(apf_context *ctx, u32 ofs) {
     return ctx->packet[ofs];
 }
 
-static int do_apf_run(apf_context* ctx) {
+static int do_apf_run(apf_context *ctx) {
 /* Is offset within ram bounds? */
 #define IN_RAM_BOUNDS(p) (ENFORCE_UNSIGNED(p) && (p) < ctx->ram_len)
 /* Is offset within packet bounds? */
@@ -1237,8 +1237,8 @@ static int do_apf_run(apf_context* ctx) {
     return EXCEPTION;
 }
 
-static int apf_runner(void* ctx, u32* const program, const u32 program_len,
-                      const u32 ram_len, const u8* const packet,
+static int apf_runner(struct apf_fw_ctx *ctx, u32 *const program, const u32 program_len,
+                      const u32 ram_len, const u8 *const packet,
                       const u32 packet_len, const u32 filter_age_16384ths) {
     /* Due to direct 32-bit read/write access to counters at end of ram */
     /* APFv6 interpreter requires program & ram_len to be 4 byte aligned. */
@@ -1290,8 +1290,8 @@ static int apf_runner(void* ctx, u32* const program, const u32 program_len,
     }
 }
 
-int apf_run(void* ctx, u32* const program, const u32 program_len,
-            const u32 ram_len, const u8* const packet,
+int apf_run(struct apf_fw_ctx *ctx, u32 *const program, const u32 program_len,
+            const u32 ram_len, const u8 *const packet,
             const u32 packet_len, const u32 filter_age_16384ths) {
     /* Any valid ethernet packet should be at least ETH_HLEN long... */
     if (!packet) return EXCEPTION;
