@@ -82,7 +82,7 @@ int apf_run_generic(const uint32_t apf_version,
     if (apf_version == apfv61__apf_version())  // 6100
         return apfv61__apf_run(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 
-    if (apf_version >= 20250228) // hardcoded (for now) to allow evolving apfnext__apf_version()
+    if (apf_version >= 7000) // hardcoded (for now) to allow evolving apfnext__apf_version()
         return apfnext__apf_run(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 
     return -1;
