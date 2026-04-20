@@ -95,13 +95,13 @@ FUNC(int do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp)) {
     return ret;
 }
 
-static int do_discard_buffer(apf_context *ctx) {
+static inline int do_discard_buffer(apf_context *ctx) {
     return do_transmit_buffer(ctx, 0 /* pkt_len */, 0 /* dscp */);
 }
 
 #define DECODE_U8() (ctx->program[ctx->pc++])
 
-static u16 decode_be16(apf_context *ctx) {
+static inline u16 decode_be16(apf_context *ctx) {
     u16 v = DECODE_U8();
     v <<= 8;
     v |= DECODE_U8();
@@ -111,14 +111,14 @@ static u16 decode_be16(apf_context *ctx) {
 // Decode an immediate, lengths [0..4] all work, does not do range checking.
 // But note that program is at least 20 bytes shorter than ram, so first few
 // immediates can always be safely decoded without exceeding ram buffer.
-static u32 decode_imm(apf_context *ctx, u32 length) {
-    u32 i, v = 0;
-    for (i = 0; i < length; ++i) v = (v << 8) | DECODE_U8();
+static inline u32 decode_imm(apf_context *ctx, u32 length) {
+    u32 v = 0;
+    for (u32 i = 0; i < length; ++i) v = (v << 8) | DECODE_U8();
     return v;
 }
 
 // Warning: 'ofs' should be validated by caller!
-static u8 read_packet_u8(apf_context *ctx, u32 ofs) {
+static inline u8 read_packet_u8(apf_context *ctx, u32 ofs) {
     return ctx->packet[ofs];
 }
 
@@ -243,16 +243,14 @@ static int do_apf_run(apf_context *ctx) {
               // Immediately enclosing switch statement guarantees
               // opcode cannot be any other value.
             }
-            {
-                const u32 end_offs = offs + (load_size - 1);
-                u32 val = 0;
-                // Catch overflow/wrap-around.
-                ASSERT_RETURN(end_offs >= offs);
-                ASSERT_IN_PACKET_BOUNDS(end_offs);
-                // load_size underflow on final iteration not an issue as not used after loop.
-                while (load_size--) val = (val << 8) | read_packet_u8(ctx, offs++);
-                REG = val;
-            }
+            const u32 end_offs = offs + (load_size - 1);
+            u32 val = 0;
+            // Catch overflow/wrap-around.
+            ASSERT_RETURN(end_offs >= offs);
+            ASSERT_IN_PACKET_BOUNDS(end_offs);
+            // load_size underflow on final iteration not an issue as not used after loop.
+            while (load_size--) val = (val << 8) | read_packet_u8(ctx, offs++);
+            REG = val;
             break;
           }
           case JMP_OPCODE:
@@ -528,10 +526,9 @@ static int do_apf_run(apf_context *ctx) {
               case EWRITE2_EXT_OPCODE:
               case EWRITE4_EXT_OPCODE: {
                 const u32 write_len = 1 << (imm - EWRITE1_EXT_OPCODE);
-                u32 i;
                 ASSERT_RETURN(ctx->tx_buf);
                 ASSERT_IN_OUTPUT_BOUNDS(ctx->mem.named.tx_buf_offset, write_len);
-                for (i = 0; i < write_len; ++i) {
+                for (u32 i = 0; i < write_len; ++i) {
                     ctx->tx_buf[ctx->mem.named.tx_buf_offset++] =
                         (u8)(REG >> (write_len - 1 - i) * 8);
                 }
@@ -547,8 +544,7 @@ static int do_apf_run(apf_context *ctx) {
                 // cnt underflow on final iteration not an issue as not used after loop.
                 while (cnt--) {
                     u32 v = 0;
-                    int i;
-                    for (i = 0; i < len; ++i) v = (v << 8) | DECODE_U8();
+                    for (int i = 0; i < len; ++i) v = (v << 8) | DECODE_U8();
                     if (REG == v) jmp ^= true;
                 }
                 if (jmp) ctx->pc += jump_offs;
@@ -599,14 +595,11 @@ static int do_apf_run(apf_context *ctx) {
           case WRITE_OPCODE: {
             ASSERT_RETURN(ctx->tx_buf);
             ASSERT_RETURN(len_field);
-            {
-                const u32 write_len = 1 << (len_field - 1);
-                u32 i;
-                ASSERT_IN_OUTPUT_BOUNDS(ctx->mem.named.tx_buf_offset, write_len);
-                for (i = 0; i < write_len; ++i) {
-                    ctx->tx_buf[ctx->mem.named.tx_buf_offset++] =
-                        (u8)(imm >> (write_len - 1 - i) * 8);
-                }
+            const u32 write_len = 1 << (len_field - 1);
+            ASSERT_IN_OUTPUT_BOUNDS(ctx->mem.named.tx_buf_offset, write_len);
+            for (u32 i = 0; i < write_len; ++i) {
+                ctx->tx_buf[ctx->mem.named.tx_buf_offset++] =
+                    (u8)(imm >> (write_len - 1 - i) * 8);
             }
             break;
           }
@@ -637,26 +630,26 @@ static int apf_runner(struct apf_fw_ctx *ctx, u32 *const program, const u32 prog
     if ((program_len | ram_len) >> 31) return EXCEPTION;
 
     {
-        apf_context apf_ctx = { 0 };
-        int ret;
+        apf_context apf_ctx = {
+            .ptr_size = (u8)sizeof(void*),
+            .caller_ctx = ctx,
+            .program = (u8*)program,
+            .program_len = program_len,
+            .ram_len = ram_len,
+            .packet = packet,
+            .packet_len = packet_len,
+            .mem.named = {
+                .program_size = program_len,
+                .ram_len = ram_len,
+                .packet_size = packet_len,
+                .apf_version = apf_version(),
+                .filter_age = filter_age_16384ths >> 14,
+                .filter_age_16384ths = filter_age_16384ths,
+                .internal_state = 0 // TODO: use proper value
+            }
+        };
 
-        apf_ctx.ptr_size = sizeof(void*);
-        apf_ctx.caller_ctx = ctx;
-        apf_ctx.program = (u8*)program;
-        apf_ctx.program_len = program_len;
-        apf_ctx.ram_len = ram_len;
-        apf_ctx.packet = packet;
-        apf_ctx.packet_len = packet_len;
-        // Fill in pre-filled memory slot values.
-        apf_ctx.mem.named.program_size = program_len;
-        apf_ctx.mem.named.ram_len = ram_len;
-        apf_ctx.mem.named.packet_size = packet_len;
-        apf_ctx.mem.named.apf_version = apf_version();
-        apf_ctx.mem.named.filter_age = filter_age_16384ths >> 14;
-        apf_ctx.mem.named.filter_age_16384ths = filter_age_16384ths;
-        apf_ctx.mem.named.internal_state = 0;  // TODO: use proper value
-
-        ret = do_apf_run(&apf_ctx);
+        int ret = do_apf_run(&apf_ctx);
         if (apf_ctx.tx_buf) do_discard_buffer(&apf_ctx);
         // Convert any exceptions internal to the program to just normal 'PASS'
         if (ret >= EXCEPTION) {
