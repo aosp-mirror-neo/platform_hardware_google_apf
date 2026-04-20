@@ -41,14 +41,12 @@ do_assemble() {
       echo "${line}"
     fi
   done < apf_interpreter_source.c \
-  | sed -r 's@(^|[^:])//(.*)$@\1/*\2 */@;'\
   | apf_internal_function match_single_name \
   | apf_internal_function match_names \
   | apf_internal_function calc_csum \
   | apf_internal_function csum_and_return_dscp \
   | apf_internal_function do_transmit_buffer
-  # The above sed converts // comments into /* */ comments for c89,
-  # and converts non-static functions to have an apf_internal_ prefix
+  # convert non-static functions to have an apf_internal_ prefix
 }
 
 do_test() {
