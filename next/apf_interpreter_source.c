@@ -31,14 +31,6 @@
   #endif
 #endif
 
-#undef bool
-#undef true
-#undef false
-typedef enum { False, True } Boolean;
-#define bool Boolean
-#define true True
-#define false False
-
 #include "apf_defs.h"
 #include "apf.h"
 #include "apf_utils.h"

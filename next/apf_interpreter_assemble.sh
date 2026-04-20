@@ -31,12 +31,10 @@ do_assemble() {
       esac
     elif [[ "${line}" =~ ${RE_UNDEF} ]]; then
       case "${BASH_REMATCH[1]}" in
-        bool|true|false) : ;;
         *) echo "${line}" ;;
       esac
     elif [[ "${line}" =~ ${RE_DEFINE} ]]; then
       case "${BASH_REMATCH[1]}" in
-        bool|true|false) : ;;
         *) echo "${line}" ;;
       esac
     else
@@ -44,16 +42,12 @@ do_assemble() {
     fi
   done < apf_interpreter_source.c \
   | sed -r 's@(^|[^:])//(.*)$@\1/*\2 */@;'\
-  | rename bool Boolean \
-  | rename true True \
-  | rename false False \
   | apf_internal_function match_single_name \
   | apf_internal_function match_names \
   | apf_internal_function calc_csum \
   | apf_internal_function csum_and_return_dscp \
   | apf_internal_function do_transmit_buffer
   # The above sed converts // comments into /* */ comments for c89,
-  # and converts bool/true/false into Boolean/True/False
   # and converts non-static functions to have an apf_internal_ prefix
 }
 

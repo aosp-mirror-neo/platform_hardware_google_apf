@@ -20,6 +20,7 @@
 #ifdef __KERNEL__
   #include <linux/types.h>
 #else
+  #include <stdbool.h>
   #include <stdint.h>
 #endif
 

@@ -31,8 +31,6 @@
   #endif
 #endif
 
-typedef enum { False, True } Boolean;
-
 /* Begin include of apf_defs.h */
 typedef int8_t s8;
 typedef int16_t s16;
@@ -45,8 +43,8 @@ typedef uint32_t u32;
 typedef enum {
   error_program = -2,
   error_packet = -1,
-  nomatch = False,
-  match = True
+  nomatch = false,
+  match = true
 } match_result_type;
 
 #define ETH_P_IP	0x0800
@@ -469,7 +467,7 @@ FUNC(match_result_type apf_internal_match_single_name(const u8* needle,
                                     const u32 udp_len,
                                     u32* const ofs)) {
     u32 first_unread_offset = *ofs;
-    Boolean is_qname_match = True;
+    bool is_qname_match = true;
     int lvl;
 
     /* DNS names are <= 255 characters including terminating 0, since >= 1 char + '.' per level => max. 127 levels */
@@ -501,11 +499,11 @@ FUNC(match_result_type apf_internal_match_single_name(const u8* needle,
                         is_qname_match &= (uppercase(w) == *needle++);
                     }
                 } else {
-                    if (len != 0xFF) is_qname_match = False;
+                    if (len != 0xFF) is_qname_match = false;
                     *ofs += label_size;
                 }
             } else {
-                is_qname_match = False;
+                is_qname_match = false;
                 *ofs += label_size;
             }
         } else { /* reached the end of the name */
@@ -545,7 +543,7 @@ FUNC(match_result_type apf_internal_match_names(const u8* needles,
     num_answers = read_be16(udp + 6) + read_be16(udp + 8) + read_be16(udp + 10);
 
     /* loop until we hit final needle, which is a null byte */
-    while (True) {
+    while (true) {
         u32 i, ofs = 12;  /* dns header is 12 bytes */
         if (needles >= needle_bound) return error_program;
         if (!*needles) return nomatch;  /* we've run out of needles without finding a match */
@@ -627,12 +625,12 @@ static u16 fix_udp_csum(u16 csum) {
  *                     calculation (until end of pkt specified by len)
  * @param csum_ofs - offset from beginning of pkt to store L4 checksum
  *                   255 means do not calculate/store L4 checksum
- * @param udp - True iff we should generate a UDP style L4 checksum (0 -> 0xFFFF)
+ * @param udp - true iff we should generate a UDP style L4 checksum (0 -> 0xFFFF)
  *
  * @return 6-bit DSCP value [0..63], garbage on parse error.
  */
 FUNC(int apf_internal_csum_and_return_dscp(u8* const pkt, const s32 len, const u8 ip_ofs,
-  const u16 partial_csum, const u8 csum_start, const u8 csum_ofs, const Boolean udp)) {
+  const u16 partial_csum, const u8 csum_start, const u8 csum_ofs, const bool udp)) {
     if (csum_ofs < 255) {
         /* note that apf_internal_calc_csum() treats negative lengths as zero */
         u32 csum = apf_internal_calc_csum(partial_csum, pkt + csum_start, len - csum_start);
@@ -875,7 +873,7 @@ static int do_apf_run(apf_context *ctx) {
                 /* First invocation of APFv6 jmpdata instruction */
                 counter[-1] = 0x12345678;  /* endianness marker */
                 counter[-2]++;  /* total packets ++ */
-                ctx->v6 = (u8)True;
+                ctx->v6 = (u8)true;
             }
             /* This can jump backwards. Infinite looping prevented by instructions_remaining. */
             ctx->pc += imm;
@@ -910,7 +908,7 @@ static int do_apf_run(apf_context *ctx) {
             u32 len = cmp_imm & 2047; /* 0..2047 */
             u32 bytes = cnt * len;
             const u32 last_packet_offs = ctx->R[0] + len - 1;
-            Boolean matched = False;
+            bool matched = false;
             /* bytes = cnt * len is size in bytes of data to compare. */
             /* pc is offset of program bytes to compare. */
             /* imm is jump target offset. */
@@ -937,7 +935,7 @@ static int do_apf_run(apf_context *ctx) {
             u8 cnt = (cmp_imm >> 4) + 1; /* 1..16 bytestrings to match */
             u8 len = (cmp_imm & 15) + 1; /* 1..16 bytestring length */
             const u32 last_packet_offs = ofs + len - 1;  /* min 0+1-1=0, max 255+16-1=270 */
-            Boolean matched = False;
+            bool matched = false;
             /* imm is jump target offset. */
             /* [ofs..last_packet_offs] are packet bytes to compare. */
             ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
@@ -1024,7 +1022,7 @@ static int do_apf_run(apf_context *ctx) {
                 u8 csum_ofs;
                 u8 csum_start = 0;
                 u16 partial_csum = 0;
-                Boolean udp = reg_num;
+                bool udp = reg_num;
                 u32 pkt_len = ctx->mem.named.tx_buf_offset;
                 if (opcode != ALLOC_XMIT_OPCODE) {
                     /* parse TRANSMIT_EXT_OPCODE arguments */
@@ -1134,7 +1132,7 @@ static int do_apf_run(apf_context *ctx) {
                         ctx->pc++;
                     }
                     ctx->pc += 2;  /* skip the final double 0 needle end */
-                    /* relies on reg_num in {0,1} and match_rst being {False=0, True=1} */
+                    /* relies on reg_num in {0,1} and match_rst being {false=0, true=1} */
                     if (!(reg_num ^ (u32)match_rst)) ctx->pc += jump_offs;
                 }
                 break;
@@ -1155,7 +1153,7 @@ static int do_apf_run(apf_context *ctx) {
               case JONEOF_EXT_OPCODE: {
                 u32 jump_offs = decode_imm(ctx, imm_len); /* 2nd imm, at worst 8 B past prog_len */
                 u8 imm3 = DECODE_U8();  /* 3rd imm, at worst 9 bytes past prog_len */
-                Boolean jmp = imm3 & 1;  /* =0 jmp on match, =1 jmp on no match */
+                bool jmp = imm3 & 1;  /* =0 jmp on match, =1 jmp on no match */
                 u8 len = ((imm3 >> 1) & 3) + 1;  /* size [1..4] in bytes of an element */
                 u8 cnt = (imm3 >> 3) + 2;  /* number [2..33] of elements in set */
                 if (ctx->pc + cnt * len > ctx->program_len) return EXCEPTION;
@@ -1164,7 +1162,7 @@ static int do_apf_run(apf_context *ctx) {
                     u32 v = 0;
                     int i;
                     for (i = 0; i < len; ++i) v = (v << 8) | DECODE_U8();
-                    if (REG == v) jmp ^= True;
+                    if (REG == v) jmp ^= true;
                 }
                 if (jmp) ctx->pc += jump_offs;
                 break;
