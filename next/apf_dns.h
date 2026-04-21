@@ -80,12 +80,12 @@ static match_result_type match_single_name(const u8* needle,
  *
  * @return 1 if matched, 0 if not matched, -1 if error in packet, -2 if error in program.
  */
-FUNC(match_result_type match_names(const u8* needles,
-                              const u8* const needle_bound,
-                              const u8* const udp,
-                              const u32 udp_len,
-                              const int question_type1,
-                              const int question_type2)) {
+static match_result_type match_names(const u8* needles,
+                                     const u8* const needle_bound,
+                                     const u8* const udp,
+                                     const u32 udp_len,
+                                     const int question_type1,
+                                     const int question_type2) {
     u32 num_questions, num_answers;
     if (udp_len < 12) return error_packet;  /* lack of dns header */
 
