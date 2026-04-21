@@ -12,11 +12,11 @@
  *
  * @return 1 if matched, 0 if not matched, -1 if error in packet, -2 if error in program.
  */
-FUNC(match_result_type match_single_name(const u8* needle,
-                                    const u8* const needle_bound,
-                                    const u8* const udp,
-                                    const u32 udp_len,
-                                    u32* const ofs)) {
+static match_result_type match_single_name(const u8* needle,
+                                           const u8* const needle_bound,
+                                           const u8* const udp,
+                                           const u32 udp_len,
+                                           u32* const ofs) {
     u32 first_unread_offset = *ofs;
     bool is_qname_match = true;
     int lvl;

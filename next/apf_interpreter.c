@@ -461,11 +461,11 @@ static u8 uppercase(u8 c) {
  *
  * @return 1 if matched, 0 if not matched, -1 if error in packet, -2 if error in program.
  */
-FUNC(match_result_type apf_internal_match_single_name(const u8* needle,
-                                    const u8* const needle_bound,
-                                    const u8* const udp,
-                                    const u32 udp_len,
-                                    u32* const ofs)) {
+static match_result_type match_single_name(const u8* needle,
+                                           const u8* const needle_bound,
+                                           const u8* const udp,
+                                           const u32 udp_len,
+                                           u32* const ofs) {
     u32 first_unread_offset = *ofs;
     bool is_qname_match = true;
     int lvl;
@@ -549,7 +549,7 @@ FUNC(match_result_type apf_internal_match_names(const u8* needles,
         if (!*needles) return nomatch;  /* we've run out of needles without finding a match */
         /* match questions */
         for (i = 0; i < num_questions; ++i) {
-            match_result_type m = apf_internal_match_single_name(needles, needle_bound, udp, udp_len, &ofs);
+            match_result_type m = match_single_name(needles, needle_bound, udp, udp_len, &ofs);
             int qtype;
             if (m < nomatch) return m;
             if (ofs + 2 > udp_len) return error_packet;
@@ -562,7 +562,7 @@ FUNC(match_result_type apf_internal_match_names(const u8* needles,
         }
         /* match answers */
         if (question_type1 == -1) for (i = 0; i < num_answers; ++i) {
-            match_result_type m = apf_internal_match_single_name(needles, needle_bound, udp, udp_len, &ofs);
+            match_result_type m = match_single_name(needles, needle_bound, udp, udp_len, &ofs);
             if (m < nomatch) return m;
             ofs += 8; /* skip be16 type, class & be32 ttl */
             if (ofs + 2 > udp_len) return error_packet;
