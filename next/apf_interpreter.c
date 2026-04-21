@@ -55,8 +55,6 @@ typedef enum {
 #define IPV6_HLEN	40
 #define TCP_HLEN	20
 #define UDP_HLEN	8
-
-#define FUNC(x) x; x
 // End include of apf_defs.h
 // Begin include of apf.h
 /*
