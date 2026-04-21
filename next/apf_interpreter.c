@@ -31,7 +31,7 @@
   #endif
 #endif
 
-/* Begin include of apf_defs.h */
+// Begin include of apf_defs.h
 typedef int8_t s8;
 typedef int16_t s16;
 typedef int32_t s32;
@@ -57,8 +57,8 @@ typedef enum {
 #define UDP_HLEN	8
 
 #define FUNC(x) x; x
-/* End include of apf_defs.h */
-/* Begin include of apf.h */
+// End include of apf_defs.h
+// Begin include of apf.h
 /*
  * Copyright 2024, The Android Open Source Project
  *
@@ -431,8 +431,8 @@ typedef union {
 #define EXTRACT_IMM_LENGTH(i) (((i) >> 1) & 3)
 
 #endif  // ANDROID_APF_APF_H
-/* End include of apf.h */
-/* Begin include of apf_utils.h */
+// End include of apf.h
+// Begin include of apf_utils.h
 static u32 read_be16(const u8* buf) {
     return buf[0] * 256u + buf[1];
 }
@@ -445,8 +445,8 @@ static void store_be16(u8* const buf, const u16 v) {
 static u8 uppercase(u8 c) {
     return (c >= 'a') && (c <= 'z') ? c - ('a' - 'A') : c;
 }
-/* End include of apf_utils.h */
-/* Begin include of apf_dns.h */
+// End include of apf_utils.h
+// Begin include of apf_dns.h
 /**
  * Compares a (Q)NAME starting at udp[*ofs] with the target name.
  *
@@ -580,8 +580,8 @@ FUNC(match_result_type apf_internal_match_names(const u8* needles,
         needles++;  /* skip the NULL byte at the end of *a* DNS name */
     }
 }
-/* End include of apf_dns.h */
-/* Begin include of apf_checksum.h */
+// End include of apf_dns.h
+// Begin include of apf_checksum.h
 /**
  * Calculate big endian 16-bit sum of a buffer (max 128kB),
  * then fold and negate it, producing a 16-bit result in [0..FFFE].
@@ -648,7 +648,7 @@ FUNC(int apf_internal_csum_and_return_dscp(u8* const pkt, const s32 len, const u
     }
     return 0;
 }
-/* End include of apf_checksum.h */
+// End include of apf_checksum.h
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK

@@ -12,8 +12,6 @@ apf_internal_function() {
 
 do_assemble() {
   local -r RE_INCLUDE='^#include "([a-z_]+[.]h)"$'
-  local -r RE_UNDEF='^#undef ([_A-Za-z0-9]+)$'
-  local -r RE_DEFINE='^#define ([_A-Za-z0-9]+) (.*)$'
 
   local line
   while IFS='' read -r line; do
@@ -21,21 +19,13 @@ do_assemble() {
       local include_name="${BASH_REMATCH[1]}"
       case "${include_name}" in
         apf_interpreter.h)
-          echo "#include \"${BASH_REMATCH[1]}\""
+          echo "${line}"
           ;;
         *)
-          echo "/* Begin include of ${include_name} */"
+          echo "// Begin include of ${include_name}"
           cat "${include_name}"
-          echo "/* End include of ${include_name} */"
+          echo "// End include of ${include_name}"
           ;;
-      esac
-    elif [[ "${line}" =~ ${RE_UNDEF} ]]; then
-      case "${BASH_REMATCH[1]}" in
-        *) echo "${line}" ;;
-      esac
-    elif [[ "${line}" =~ ${RE_DEFINE} ]]; then
-      case "${BASH_REMATCH[1]}" in
-        *) echo "${line}" ;;
       esac
     else
       echo "${line}"
