@@ -45,8 +45,13 @@ static inline u16 fix_udp_csum(u16 csum) {
  *
  * @return 6-bit DSCP value [0..63], garbage on parse error.
  */
-FUNC(int csum_and_return_dscp(u8* const pkt, const s32 len, const u8 ip_ofs,
-  const u16 partial_csum, const u8 csum_start, const u8 csum_ofs, const bool udp)) {
+static int csum_and_return_dscp(u8* const pkt,
+                                const s32 len,
+                                const u8 ip_ofs,
+                                const u16 partial_csum,
+                                const u8 csum_start,
+                                const u8 csum_ofs,
+                                const bool udp) {
     if (csum_ofs < 255) {
         // note that calc_csum() treats negative lengths as zero
         u32 csum = calc_csum(partial_csum, pkt + csum_start, len - csum_start);
