@@ -31,7 +31,6 @@ do_assemble() {
       echo "${line}"
     fi
   done < apf_interpreter_source.c \
-  | apf_internal_function calc_csum \
   | apf_internal_function csum_and_return_dscp \
   | apf_internal_function do_transmit_buffer
   # convert non-static functions to have an apf_internal_ prefix

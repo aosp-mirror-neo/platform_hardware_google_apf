@@ -2,7 +2,7 @@
  * Calculate big endian 16-bit sum of a buffer (max 128kB),
  * then fold and negate it, producing a 16-bit result in [0..FFFE].
  */
-FUNC(u16 calc_csum(u32 sum, const u8* const buf, const s32 len)) {
+static u16 calc_csum(u32 sum, const u8* const buf, const s32 len) {
     u16 csum;
     s32 i;
     for (i = 0; i < len; ++i) sum += buf[i] * ((i & 1) ? 1u : 256u);

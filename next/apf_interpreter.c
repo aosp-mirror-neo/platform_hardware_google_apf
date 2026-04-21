@@ -586,7 +586,7 @@ static match_result_type match_names(const u8* needles,
  * Calculate big endian 16-bit sum of a buffer (max 128kB),
  * then fold and negate it, producing a 16-bit result in [0..FFFE].
  */
-FUNC(u16 apf_internal_calc_csum(u32 sum, const u8* const buf, const s32 len)) {
+static u16 calc_csum(u32 sum, const u8* const buf, const s32 len) {
     u16 csum;
     s32 i;
     for (i = 0; i < len; ++i) sum += buf[i] * ((i & 1) ? 1u : 256u);
@@ -632,15 +632,15 @@ static u16 fix_udp_csum(u16 csum) {
 FUNC(int apf_internal_csum_and_return_dscp(u8* const pkt, const s32 len, const u8 ip_ofs,
   const u16 partial_csum, const u8 csum_start, const u8 csum_ofs, const bool udp)) {
     if (csum_ofs < 255) {
-        // note that apf_internal_calc_csum() treats negative lengths as zero
-        u32 csum = apf_internal_calc_csum(partial_csum, pkt + csum_start, len - csum_start);
+        // note that calc_csum() treats negative lengths as zero
+        u32 csum = calc_csum(partial_csum, pkt + csum_start, len - csum_start);
         if (udp) csum = fix_udp_csum(csum);
         store_be16(pkt + csum_ofs, csum);
     }
     if (ip_ofs < 255) {
         u8 ip = pkt[ip_ofs] >> 4;
         if (ip == 4) {
-            store_be16(pkt + ip_ofs + 10, apf_internal_calc_csum(0, pkt + ip_ofs, IPV4_HLEN));
+            store_be16(pkt + ip_ofs + 10, calc_csum(0, pkt + ip_ofs, IPV4_HLEN));
             return pkt[ip_ofs + 1] >> 2;  /* DSCP */
         } else if (ip == 6) {
             return (read_be16(pkt + ip_ofs) >> 6) & 0x3F;  /* DSCP */
