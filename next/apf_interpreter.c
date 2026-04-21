@@ -596,7 +596,7 @@ static u16 calc_csum(u32 sum, const u8* const buf, const s32 len) {
     return ~csum;  /* assuming sum > 0 on input, this is in [0..FFFE] */
 }
 
-static u16 fix_udp_csum(u16 csum) {
+static inline u16 fix_udp_csum(u16 csum) {
     return csum ? csum : 0xFFFF;
 }
 
