@@ -706,7 +706,7 @@ typedef struct {
     // Note: any extra u16s go here, then u8s
 } apf_context;
 
-FUNC(int apf_internal_do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp)) {
+static inline int do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp) {
     int ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
     ctx->tx_buf = NULL;
     ctx->tx_buf_len = 0;
@@ -714,7 +714,7 @@ FUNC(int apf_internal_do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp)
 }
 
 static inline int do_discard_buffer(apf_context *ctx) {
-    return apf_internal_do_transmit_buffer(ctx, 0 /* pkt_len */, 0 /* dscp */);
+    return do_transmit_buffer(ctx, 0 /* pkt_len */, 0 /* dscp */);
 }
 
 #define DECODE_U8() (ctx->program[ctx->pc++])
@@ -1058,7 +1058,7 @@ static int do_apf_run(apf_context *ctx) {
                 {
                     int dscp = csum_and_return_dscp(ctx->tx_buf, (s32)pkt_len, ip_ofs,
                                                     partial_csum, csum_start, csum_ofs, udp);
-                    int ret = apf_internal_do_transmit_buffer(ctx, pkt_len, dscp);
+                    int ret = do_transmit_buffer(ctx, pkt_len, dscp);
                     if (ret) { counter[-4]++; return EXCEPTION; } // transmit failure
                 }
                 break;

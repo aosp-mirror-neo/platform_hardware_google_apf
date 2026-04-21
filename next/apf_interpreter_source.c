@@ -88,7 +88,7 @@ typedef struct {
     // Note: any extra u16s go here, then u8s
 } apf_context;
 
-FUNC(int do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp)) {
+static inline int do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp) {
     int ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
     ctx->tx_buf = NULL;
     ctx->tx_buf_len = 0;

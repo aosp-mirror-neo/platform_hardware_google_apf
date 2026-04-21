@@ -2,14 +2,6 @@
 set -e
 set -u
 
-rename() {
-  sed -r 's@(^|[^A-Za-z0-9_])'"$1"'([^A-Za-z0-9_]|$)@\1'"$2"'\2@g;'
-}
-
-apf_internal_function() {
-  rename "$1" "apf_internal_$1"
-}
-
 do_assemble() {
   local -r RE_INCLUDE='^#include "([a-z_]+[.]h)"$'
 
@@ -30,9 +22,7 @@ do_assemble() {
     else
       echo "${line}"
     fi
-  done < apf_interpreter_source.c \
-  | apf_internal_function do_transmit_buffer
-  # convert non-static functions to have an apf_internal_ prefix
+  done < apf_interpreter_source.c
 }
 
 do_test() {
