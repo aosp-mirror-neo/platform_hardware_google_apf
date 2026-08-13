@@ -249,6 +249,21 @@ uint8_t *apf_allocate_tx_buffer(struct apf_fw_ctx *ctx, uint32_t size);
 uint8_t *apf_allocate_rx_buffer(struct apf_fw_ctx *ctx, uint32_t size);
 
 /**
+ * Transmit destination type for egress packets.
+ */
+typedef enum {
+    /** Send to all clients of the AP */
+    MULTICAST,
+    /** Send to the source of the packet that triggered this execution */
+    UNICAST_RETURN,
+    /**
+     * Send to specific client MAC (can be triggered from a timer,
+     * so there may be no triggering client).
+     */
+    UNICAST_OTHER,
+} apf_transmit_type;
+
+/**
  * Transmits the allocated buffer and deallocates it.
  *
  * The apf_interpreter will not read/write from/to the buffer once it calls
@@ -274,11 +289,15 @@ uint8_t *apf_allocate_rx_buffer(struct apf_fw_ctx *ctx, uint32_t size);
  *              but only deallocate it.
  * @param dscp - value in [0..63] - the upper 6 bits of the TOS field in
  *               the IPv4 header or traffic class field in the IPv6 header.
+ * @param type - the transmit destination type (MULTICAST, UNICAST_RETURN, UNICAST_OTHER).
+ *               For APF in STA mode this parameter MUST be ignored, since all packets
+ *               need to be sent via wifi unicast to the AP anyway.
  * @return non-zero if the firmware *knows* the transmit will fail, zero if
  *         the transmit succeeded or the firmware thinks it will succeed.
  *         Returning an error will likely result in apf_run() returning PASS.
  */
-int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp);
+int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp,
+                            apf_transmit_type type);
 
 /**
  * Transmits (to the CPU) the allocated buffer and deallocates it.

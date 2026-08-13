@@ -96,12 +96,13 @@ int apf_transmit_rx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, u
   return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/true);
 }
 
-int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {
+int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp,
+                            __attribute__((unused)) apf_transmit_type type) {
   return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/false);
 }
 
 int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {
-  return apf_transmit_tx_buffer(ctx, ptr, len, dscp);
+  return apf_transmit_tx_buffer(ctx, ptr, len, dscp, UNICAST_RETURN);
 }
 
 void *apf_allocate_state(__attribute__((unused)) struct apf_fw_ctx *ctx, uint32_t size) {

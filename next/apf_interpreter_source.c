@@ -439,7 +439,7 @@ bool apf_process_timer_event(void) {
 FOR_KERNEL(apf_process_timer_event)
 
 static inline int do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp) {
-    int ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
+    int ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp, UNICAST_RETURN);
     ctx->tx_buf = NULL;
     ctx->tx_buf_len = 0;
     return ret;
