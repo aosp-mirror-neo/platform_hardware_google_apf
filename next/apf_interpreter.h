@@ -175,6 +175,26 @@ void apf_global_unlock(void);
  * likely firmware cpu bootup/reset.
  * This should be a monotonically increasing clock source at a constant rate of 16K ticks/second.
  * This function may be called while holding APF firmware global lock.
+ *
+ * NOTE: How to calculate ticks:
+ *
+ * - if you have a u64 clock source counting nanoseconds:
+ *     u64 nanoseconds = current_nanosecond_time_u64();
+ *     u32 ticks = (u32)((nanoseconds << 5) / 1953125);
+ *
+ * - if you have a u64 clock source counting microseconds:
+ *     u64 microseconds = current_microsecond_time_u64();
+ *     u32 ticks = (u32)((microseconds << 8) / 15625);
+ *
+ * - if you have a u64 clock source counting milliseconds:
+ *     u64 milliseconds = current_millisecond_time_u64();
+ *     u32 ticks = (u32)((milliseconds << 11) / 125);
+ *
+ * - if you have a u32 clock source counting milliseconds and cannot use 64-bit arithmetic:
+ *     u32 milliseconds = current_millisecond_time_u32();
+ *     u32 ticks = ((((((milliseconds << 4) / 5) << 2) / 5) << 2) / 5) << 3;
+ *   or the less precise:
+ *     u32 ticks = ((milliseconds << 4) / 125) << 7;
  */
 uint32_t apf_get_time_in_ticks(void);
 
