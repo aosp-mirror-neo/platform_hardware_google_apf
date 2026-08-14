@@ -443,6 +443,35 @@ uint32_t apf_ticks_until_next_timer_event(uint32_t *precision);
 bool apf_process_timer_event(void);
 
 /**
+ * Runs the installed APF program over a full packet.
+ *
+ * The return value of apf_run_packet indicates whether the packet should
+ * be passed or dropped. As a part of execution, the APF program can call
+ * apf_allocate_tx_buffer() and apf_transmit_tx_buffer() to construct and
+ * transmit a reply packet.
+ *
+ * @param state - non-NULL state returned by apf_enable(). The caller must not
+ *                make concurrent calls using the same state.
+ * @param packet - the full packet bytes, starting from the ethernet header.
+ * @param packet_len - the length of {@code packet} in bytes, not
+ *                     including trailers/CRC.
+ *
+ * @return zero if packet should be dropped,
+ *         non-zero if packet should be passed, specifically:
+ *         - 1 on normal apf program execution,
+ *         - 2 on exceptional circumstances (caused by bad firmware integration),
+ *           these include:
+ *             - state pointer which is a null pointer
+ *             - packet pointer which is a null pointer
+ *             - packet_len shorter than ETH_HLEN (14)
+ *           As such, you may want to log a firmware exception if 2 is ever returned...
+ */
+int apf_run_packet(struct apf_state *state, const uint8_t *const packet,
+                   const uint32_t packet_len);
+
+/**
+ * NOTE: apf_run will be removed in a later change. Use apf_run_packet instead.
+ *
  * Runs an APF program over a packet.
  *
  * The return value of apf_run indicates whether the packet should

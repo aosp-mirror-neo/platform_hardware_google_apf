@@ -1638,6 +1638,7 @@ static int apf_runner(struct apf_fw_ctx *ctx, u32 *const program, const u32 prog
     }
 }
 
+// TODO: remove apf_run in a later change.
 int apf_run(struct apf_fw_ctx *ctx, u32 *const program, const u32 program_len,
             const u32 ram_len, const u8 *const packet,
             const u32 packet_len, const u32 filter_age_16384ths) {
@@ -1648,3 +1649,18 @@ int apf_run(struct apf_fw_ctx *ctx, u32 *const program, const u32 program_len,
     return apf_runner(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 }
 FOR_KERNEL(apf_run)
+
+int apf_run_packet(struct apf_state *state, const u8 *const packet, const u32 packet_len) {
+    if (!state) return EXCEPTION;
+
+    // Any valid ethernet packet should be at least ETH_HLEN long...
+    if (!packet) return EXCEPTION;
+    if (packet_len < ETH_HLEN) return EXCEPTION;
+
+    const u32 filter_age_16384ths = apf_get_time_in_ticks() - state->program_install_time;
+    return apf_runner(state->ctx, (u32 *)state->ram, state->program_len,
+                      state->ram_size, packet, packet_len,
+                      filter_age_16384ths);
+}
+FOR_KERNEL(apf_run_packet)
+
