@@ -41,5 +41,7 @@ extern uint8_t apf_test_tx_dscp;
 struct apf_fw_ctx;
 uint8_t *apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size);
 int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp);
+void apf_test_set_time_in_ticks(uint32_t ticks);
+void apf_test_clear_time_in_ticks(void);
 
 #endif  // TEST_BUF_ALLOCATOR

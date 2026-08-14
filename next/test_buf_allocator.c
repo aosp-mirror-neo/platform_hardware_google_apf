@@ -25,6 +25,8 @@
 packet_buffer *head = NULL;
 packet_buffer *tail = NULL;
 uint8_t apf_test_tx_dscp;
+static bool apf_test_time_is_set;
+static uint32_t apf_test_time_in_ticks;
 
 /**
  * Test implementation of apf_allocate_buffer()
@@ -114,6 +116,8 @@ void apf_free_state(__attribute__((unused)) struct apf_fw_ctx *ctx, void *ptr, _
 }
 
 uint32_t apf_get_time_in_ticks(void) {
+  if (apf_test_time_is_set) return apf_test_time_in_ticks;
+
   struct timespec ts;
   if (clock_gettime(CLOCK_MONOTONIC, &ts)) abort();
 
@@ -121,6 +125,15 @@ uint32_t apf_get_time_in_ticks(void) {
   uint64_t ticks = (uint64_t)ts.tv_sec * 16384;
   ticks += ((uint64_t)ts.tv_nsec * 16384) / 1000000000ULL;
   return (uint32_t)ticks;
+}
+
+void apf_test_set_time_in_ticks(uint32_t ticks) {
+  apf_test_time_in_ticks = ticks;
+  apf_test_time_is_set = true;
+}
+
+void apf_test_clear_time_in_ticks(void) {
+  apf_test_time_is_set = false;
 }
 
 void apf_set_timer(__attribute__((unused)) uint32_t relative_ticks, __attribute__((unused)) uint32_t precision_ticks) {
