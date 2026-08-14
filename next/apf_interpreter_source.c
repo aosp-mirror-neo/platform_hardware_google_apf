@@ -142,6 +142,7 @@ struct apf_state {
     u32 next_timer_abs;
     u32 timer_precision;
     u32 program_len;
+    u32 program_install_time;
     bool suspended;
     bool timer_set;
     u8 pad[2];
@@ -271,6 +272,7 @@ int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
         if (length > state->ram_size) return -1;
         state->program_len = 0;  // TODO maybe only ifdef APF_LOCK
         memcpy(state->ram, buf, length);
+        state->program_install_time = apf_get_time_in_ticks();
         state->program_len = length;
         return 0;
     }
