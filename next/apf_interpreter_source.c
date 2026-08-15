@@ -149,6 +149,8 @@ struct apf_state {
     u8 ram[];
 };
 
+APF_STATIC_ASSERT(!(offsetof(struct apf_state, ram) % sizeof(u32)));
+
 typedef struct {
     // Note: the following 4 fields take up exactly 8 bytes.
     u16 except_buf_sz; // Length of the exception buffer (at program_len offset)
