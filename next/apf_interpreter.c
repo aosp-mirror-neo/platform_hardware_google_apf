@@ -1587,59 +1587,6 @@ static int do_apf_run(apf_context *ctx) {
     return EXCEPTION;
 }
 
-static int apf_runner(struct apf_fw_ctx *ctx, u32 *const program, const u32 program_len,
-                      const u32 ram_len, const u8 *const packet,
-                      const u32 packet_len, const u32 filter_age_16384ths) {
-    // Due to direct 32-bit read/write access to counters at end of ram
-    // APFv6 interpreter requires program & ram_len to be 4 byte aligned.
-    if (3 & (uintptr_t)program) return EXCEPTION;
-    if (3 & ram_len) return EXCEPTION;
-    if (ram_len < 1024) return EXCEPTION; // due to JBSPTR
-
-    // We rely on ram_len + 65536 not overflowing, so require ram_len < 2GiB
-    // Similarly LDDW/STDW have special meaning for negative ram offsets.
-    // We also don't want garbage like program_len == 0xFFFFFFFF
-    if ((program_len | ram_len) >> 31) return EXCEPTION;
-
-    {
-        apf_context apf_ctx = {
-            .ptr_size = (u8)sizeof(void*),
-            .caller_ctx = ctx,
-            .program = (u8*)program,
-            .program_len = program_len,
-            .ram_len = ram_len,
-            .packet = packet,
-            .packet_len = packet_len,
-            .mem.named = {
-                .program_size = program_len,
-                .ram_len = ram_len,
-                .packet_size = packet_len,
-                .apf_version = APF_VERSION,
-                .filter_age = filter_age_16384ths >> 14,
-                .filter_age_16384ths = filter_age_16384ths,
-                .internal_state = 0 // TODO: use proper value
-            }
-        };
-
-        int ret = do_apf_run(&apf_ctx);
-        if (apf_ctx.tx_buf) do_discard_buffer(&apf_ctx);
-        // Convert any exceptions internal to the program to just normal 'PASS'
-        if (ret >= EXCEPTION) {
-            u16 buf_size = apf_ctx.except_buf_sz;
-            if (buf_size >= sizeof(apf_ctx) && apf_ctx.program_len + buf_size <= apf_ctx.ram_len) {
-                u8* buf = apf_ctx.program + apf_ctx.program_len;
-                memcpy(buf, &apf_ctx, sizeof(apf_ctx));
-                buf_size -= sizeof(apf_ctx);
-                buf += sizeof(apf_ctx);
-                if (buf_size > apf_ctx.packet_len) buf_size = apf_ctx.packet_len;
-                memcpy(buf, apf_ctx.packet, buf_size);
-            }
-            ret = PASS;
-        }
-        return ret;
-    }
-}
-
 int apf_run_packet(struct apf_state *state, const u8 *const packet, const u32 packet_len) {
     if (!state) return EXCEPTION;
 
@@ -1647,10 +1594,54 @@ int apf_run_packet(struct apf_state *state, const u8 *const packet, const u32 pa
     if (!packet) return EXCEPTION;
     if (packet_len < ETH_HLEN) return EXCEPTION;
 
+    // Due to direct 32-bit read/write access to counters at end of ram
+    // APFv6 interpreter requires program & ram_len to be 4 byte aligned.
+    if (3 & (uintptr_t)state->ram) return EXCEPTION;
+    if (3 & state->ram_size) return EXCEPTION;
+    if (state->ram_size < 1024) return EXCEPTION; // due to JBSPTR
+
+    // We rely on ram_len + 65536 not overflowing, so require ram_len < 2GiB
+    // Similarly LDDW/STDW have special meaning for negative ram offsets.
+    // We also don't want garbage like program_len == 0xFFFFFFFF
+    if ((state->program_len | state->ram_size) >> 31) return EXCEPTION;
+
     const u32 filter_age_16384ths = apf_get_time_in_ticks() - state->program_install_time;
-    return apf_runner(state->ctx, (u32 *)state->ram, state->program_len,
-                      state->ram_size, packet, packet_len,
-                      filter_age_16384ths);
+
+    apf_context apf_ctx = {
+        .ptr_size = (u8)sizeof(void*),
+        .caller_ctx = state->ctx,
+        .program = state->ram,
+        .program_len = state->program_len,
+        .ram_len = state->ram_size,
+        .packet = packet,
+        .packet_len = packet_len,
+        .mem.named = {
+            .program_size = state->program_len,
+            .ram_len = state->ram_size,
+            .packet_size = packet_len,
+            .apf_version = APF_VERSION,
+            .filter_age = filter_age_16384ths >> 14,
+            .filter_age_16384ths = filter_age_16384ths,
+            .internal_state = 0 // TODO: use proper value
+        }
+    };
+
+    int ret = do_apf_run(&apf_ctx);
+    if (apf_ctx.tx_buf) do_discard_buffer(&apf_ctx);
+    // Convert any exceptions internal to the program to just normal 'PASS'
+    if (ret >= EXCEPTION) {
+        u16 buf_size = apf_ctx.except_buf_sz;
+        if (buf_size >= sizeof(apf_ctx) && apf_ctx.program_len + buf_size <= apf_ctx.ram_len) {
+            u8* buf = apf_ctx.program + apf_ctx.program_len;
+            memcpy(buf, &apf_ctx, sizeof(apf_ctx));
+            buf_size -= sizeof(apf_ctx);
+            buf += sizeof(apf_ctx);
+            if (buf_size > apf_ctx.packet_len) buf_size = apf_ctx.packet_len;
+            memcpy(buf, apf_ctx.packet, buf_size);
+        }
+        ret = PASS;
+    }
+    return ret;
 }
 FOR_KERNEL(apf_run_packet)
 
