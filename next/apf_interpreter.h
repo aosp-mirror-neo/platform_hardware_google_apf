@@ -474,10 +474,10 @@ int apf_run_packet(struct apf_state *state, const uint8_t *const packet,
  * Packet pre-filtering, based on 58 (14 ethernet + 40 ipv6 + 4 src/dport) bytes?
  * This will never trigger packet transmission (inbound/outbound).
  * Returns:
- *   ACCEPT(0)
- *   DROP(1)
+ *   DROP(0)
+ *   PASS(1)
  *   CONTINUE(2 - in which case it will prepopulate some memory slots) with apf_run_packet()
- *   ERROR(3+) meaning ACCEPT
+ *   ERROR(3+) meaning PASS
  * int apf_run_header(struct apf_state *state,
  *                    const u8 *const ether_hdr,  [14..18 bytes]
  *                    int vlan_tag,
