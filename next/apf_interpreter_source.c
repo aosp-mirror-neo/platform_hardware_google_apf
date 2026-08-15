@@ -1004,7 +1004,7 @@ int apf_run_packet(struct apf_state *state, const u8 *const packet, const u32 pa
             .apf_version = APF_VERSION,
             .filter_age = filter_age_16384ths >> 14,
             .filter_age_16384ths = filter_age_16384ths,
-            .internal_state = 0 // TODO: use proper value
+            .internal_state = state->suspended ? APF_INTERNAL_STATE_SUSPENDED : 0
         }
     };
 
