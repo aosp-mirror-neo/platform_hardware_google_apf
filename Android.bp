@@ -143,6 +143,7 @@ cc_object {
         "-Dapf_ticks_until_next_timer_event=apfnext__apf_ticks_until_next_timer_event",
         "-Dapf_process_timer_event=apfnext__apf_process_timer_event",
         "-Dapf_run=apfnext__apf_run",
+        "-Dapf_run_packet=apfnext__apf_run_packet",
         "-DAPF_TRACE_HOOK=apf_trace_hook",
     ],
     sdk_version: "24",

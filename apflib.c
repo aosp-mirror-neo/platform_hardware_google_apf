@@ -48,6 +48,7 @@
 #define apf_ticks_until_next_timer_event apfnext__apf_ticks_until_next_timer_event
 #define apf_process_timer_event apfnext__apf_process_timer_event
 #define apf_run apfnext__apf_run
+#define apf_run_packet apfnext__apf_run_packet
 #include <next/apf_interpreter.h>
 #undef apf_get_info
 #undef apf_set_id
@@ -61,8 +62,45 @@
 #undef apf_ticks_until_next_timer_event
 #undef apf_process_timer_event
 #undef apf_run
+#undef apf_run_packet
 
 #include "apflib.h"
+
+void apf_test_set_time_in_ticks(uint32_t ticks);
+void apf_test_clear_time_in_ticks(void);
+
+#define EXCEPTION 2
+
+static int apfnext_run(struct apf_fw_ctx *ctx, uint8_t *program,
+                       uint32_t program_len, uint32_t ram_len,
+                       const uint8_t *packet, uint32_t packet_len,
+                       uint32_t filter_age_16384ths) {
+    if (program_len > ram_len) return EXCEPTION;
+    const uint32_t data_len = ram_len - program_len;
+    uint8_t * const data = program + program_len;
+    int result = EXCEPTION;
+
+    struct apf_state *state = apfnext__apf_enable(ctx, ram_len);
+    if (!state) return EXCEPTION;
+
+    const uint32_t actual_ram_len = apfnext__apf_get_ram_size(state);
+    if (actual_ram_len < ram_len) goto cleanup;
+
+    const uint32_t data_offset = actual_ram_len - data_len;
+
+    apf_test_set_time_in_ticks(0);
+    if (apfnext__apf_write(state, -1, program, program_len)) goto cleanup;
+    if (data_len && apfnext__apf_write(state, (int32_t)data_offset, data, data_len)) goto cleanup;
+
+    apf_test_set_time_in_ticks(filter_age_16384ths);
+    result = apfnext__apf_run_packet(state, packet, packet_len);
+    if (data_len) apfnext__apf_read(state, data_offset, data, data_len);
+
+cleanup:
+    apf_test_clear_time_in_ticks();
+    apfnext__apf_disable(state);
+    return result;
+}
 
 const uint32_t* apf_supported_versions() {
     const int NUM_VERSIONS = 6;
@@ -107,7 +145,8 @@ int apf_run_generic(const uint32_t apf_version,
         return apfv61__apf_run(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
 
     if (apf_version >= 7000) // hardcoded (for now) to allow evolving apfnext__apf_version()
-        return apfnext__apf_run(ctx, program, program_len, ram_len, packet, packet_len, filter_age_16384ths);
+        return apfnext_run(ctx, program8, program_len, ram_len, packet, packet_len,
+                           filter_age_16384ths);
 
     return -1;
 }
