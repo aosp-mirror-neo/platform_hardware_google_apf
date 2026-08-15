@@ -47,7 +47,6 @@
 #define apf_resume apfnext__apf_resume
 #define apf_ticks_until_next_timer_event apfnext__apf_ticks_until_next_timer_event
 #define apf_process_timer_event apfnext__apf_process_timer_event
-#define apf_run apfnext__apf_run
 #define apf_run_packet apfnext__apf_run_packet
 #include <next/apf_interpreter.h>
 #undef apf_get_info
@@ -61,7 +60,6 @@
 #undef apf_resume
 #undef apf_ticks_until_next_timer_event
 #undef apf_process_timer_event
-#undef apf_run
 #undef apf_run_packet
 
 #include "apflib.h"
