@@ -32,7 +32,7 @@ static uint32_t apf_test_time_in_ticks;
  * Test implementation of apf_allocate_buffer()
  *
  * This is a reference apf_allocate_buffer() implementation for testing purpose.
- * It supports being called multiple times for each apf_run().
+ * It supports being called multiple times for each apf_run_packet().
  * Allocate a new buffer and attach next to the current buffer, then move the current to it.
  * Return the pointer to beginning of the allocated buffer region.
  */

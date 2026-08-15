@@ -64,9 +64,8 @@ extern "C" {
  * |              |                   |                  |
  * |              |                   |           [Packet Ingress]
  * |              |                   |                  |    |
- * |              |                   |                  |    '-- apf_run(state, pkt, len)
- * |              |                   |                  |         |-- apf_run_header(state, hdr2, vlan_tag, hdr3)
- * |              |                   |                  |         '-- apf_run_packet(state, pkt, len)
+ * |              |                   |                  |    |-- apf_run_header(state, hdr2, vlan_tag, hdr3)
+ * |              |                   |                  |    '-- apf_run_packet(state, pkt, len)
  * |              |                   |                  |
  * |-- Netlink -->|                   |                  |
  * |              |- ndo_apf_disable->|    (interface)   |
@@ -234,13 +233,13 @@ void apf_free_state(struct apf_fw_ctx* ctx, void* ptr, uint32_t size);
  * Allocates a buffer for the APF program to build a reply packet.
  *
  * Unless in a critical low memory state, the firmware must allow allocating at
- * least one 1514 byte buffer for every call to apf_run(). The interpreter will
+ * least one 1514 byte buffer for every call to apf_run_packet(). The interpreter will
  * have at most one active allocation at any given time, and will always either
- * transmit or deallocate the buffer before apf_run() returns.
+ * transmit or deallocate the buffer before apf_run_packet() returns.
  *
  * It is OK if the firmware decides to limit allocations to at most one per
- * apf_run() invocation. This allows the firmware to delay transmitting
- * the buffer until after apf_run() has returned (by keeping track of whether
+ * apf_run_packet() invocation. This allows the firmware to delay transmitting
+ * the buffer until after apf_run_packet() has returned (by keeping track of whether
  * a buffer was allocated/deallocated/scheduled for transmit) and may
  * allow the use of a single statically allocated 1514+ byte buffer.
  *
@@ -249,12 +248,12 @@ void apf_free_state(struct apf_fw_ctx* ctx, void* ptr, uint32_t size);
  * allow firmware to later (during or after apf_transmit_tx_buffer call) populate
  * any required headers, trailers, etc.
  *
- * @param ctx - unmodified ctx pointer passed into apf_run().
+ * @param ctx - unmodified ctx pointer passed into apf_enable().
  * @param size - the minimum size of buffer to allocate
  * @return the pointer to the allocated region. The function can return NULL to
  *         indicate allocation failure, for example if too many buffers are
  *         pending transmit. Returning NULL will most likely result in
- *         apf_run() returning PASS.
+ *         apf_run_packet() returning PASS.
  */
 uint8_t *apf_allocate_tx_buffer(struct apf_fw_ctx *ctx, uint32_t size);
 
@@ -301,7 +300,7 @@ typedef enum {
  * apf_transmit_tx_buffer() may be asynchronous, which means the actual packet
  * transmission can happen sometime after the function returns.
  *
- * @param ctx - unmodified ctx pointer passed into apf_run().
+ * @param ctx - unmodified ctx pointer passed into apf_enable().
  * @param ptr - pointer to the transmit buffer, must have been previously
  *              returned by apf_allocate_tx_buffer() and not deallocated.
  * @param len - the number of bytes to be transmitted (possibly less than
@@ -314,7 +313,7 @@ typedef enum {
  *               need to be sent via wifi unicast to the AP anyway.
  * @return non-zero if the firmware *knows* the transmit will fail, zero if
  *         the transmit succeeded or the firmware thinks it will succeed.
- *         Returning an error will likely result in apf_run() returning PASS.
+ *         Returning an error will likely result in apf_run_packet() returning PASS.
  */
 int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp,
                             apf_transmit_type type);
@@ -378,7 +377,7 @@ void apf_set_id(uint32_t id);
  * fw_ctx (cannot be NULL, uniquely identifies the network interface),
  * will be remembered by apf in the apf_state, and passed through to all other calls.
  * Will return NULL on memory exhaustion.
- * After this function returns non-NULL non-fast-path ingress must go via apf_run()
+ * After this function returns non-NULL non-fast-path ingress must go via apf_run_header()/apf_run_packet()
  * This will return a pointer returned by apf_allocate_state(fw_ctx, overhead + ram_size + …)
  */
 struct apf_state *apf_enable(struct apf_fw_ctx *ctx, uint32_t ram_size);
@@ -403,7 +402,7 @@ int apf_write(struct apf_state *state, int32_t offset, const uint8_t *buf, uint3
 
 /**
  * Firmware implementation backing driver's netdev_ops->ndo_apf_disable()
- * Before you call this you should stop calling apf_run() with this apf_state.
+ * Before you call this you should stop calling apf_run_header()/apf_run_packet() with this apf_state.
  * Will call apf_free_state(fw_ctx, ptr, same_size_as_was_allocated)
  * This also needs to be called when a netdev 'vanishes' without a clean shutdown.
  */
@@ -470,7 +469,7 @@ int apf_run_packet(struct apf_state *state, const uint8_t *const packet,
                    const uint32_t packet_len);
 
 /*
- * NOTE: we plan to replace the above apf_run() with something more like the following:
+ * NOTE: we plan to support packet pre-filtering via apf_run_header():
  *
  * Packet pre-filtering, based on 58 (14 ethernet + 40 ipv6 + 4 src/dport) bytes?
  * This will never trigger packet transmission (inbound/outbound).
@@ -483,9 +482,6 @@ int apf_run_packet(struct apf_state *state, const uint8_t *const packet,
  *                    const u8 *const ether_hdr,  [14..18 bytes]
  *                    int vlan_tag,
  *                    const u8 *const packet_hdr, [44 bytes] [const u32 pkt_hdr_len]);
- *
- * Returns ACCEPT(0), DROP(1) or ERROR(2+) meaning ACCEPT
- * int apf_run_packet(struct apf_state *state, const u8 *const packet, const u32 packet_len);
  */
 
 #ifdef __cplusplus
