@@ -153,6 +153,7 @@ cc_library_static {
     defaults: ["apf_defaults"],
     device_supported: true,
     host_supported: true,
+    export_include_dirs: ["."],
     srcs: [
         ":apfv2",
         ":apfv4",
@@ -168,6 +169,7 @@ cc_library_static {
 cc_library_static {
     name: "libapfdisassembler",
     defaults: ["apf_defaults"],
+    export_include_dirs: ["."],
     srcs: [
         "disassembler.c",
     ],
