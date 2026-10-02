@@ -942,26 +942,25 @@ static bool before(u32 a, u32 b) {
 static void apf_recalculate_global_timer(void) {
     bool any_timer_set = false;
     u32 timer_abs = 0;
-    u32 precision = 0xFFFFFFFF;
+    u32 timer_end = 0;
 
     apf_global_lock();
     for (struct apf_state *state = apf_state_list_head; state; state = state->next) {
         if (!state->timer_set) continue;
 
+        u32 end = state->next_timer_abs + state->timer_precision;
         if (!any_timer_set) {
             any_timer_set = true;
             timer_abs = state->next_timer_abs;
-            precision = state->timer_precision;
+            timer_end = end;
         } else {
-            if (before(state->next_timer_abs + state->timer_precision, timer_abs + precision)) {
-                precision = state->next_timer_abs + state->timer_precision - timer_abs;
-            }
-
             if (before(state->next_timer_abs, timer_abs)) timer_abs = state->next_timer_abs;
+            if (before(end, timer_end)) timer_end = end;
         }
     }
 
     if (any_timer_set) {
+        u32 precision = timer_end - timer_abs;
         bool need_to_arm = !apf_global_timer_set
             || (apf_global_next_timer_abs != timer_abs)
             || (apf_global_timer_precision != precision);
