@@ -222,8 +222,8 @@ typedef union {
  * imm1 is jmp target
  * imm2(u8) is offset [0..255] into packet
  * imm3(u8) is (count - 1) * 16 + (compare_len - 1), thus both count & compare_len are in [1..16]
- * which is followed by compare_len u8 'even offset' ptrs into max 526 byte data section to compare
- * against - ie. they are multipied by 2 and have 3 added to them (to skip over 'datajmp u16')
+ * which is followed by count u8 'even offset' ptrs into max 526 byte data section to compare
+ * against - ie. they are multiplied by 2 and have 3 added to them (to skip over 'datajmp u16')
  * Warning: do not specify the same byte sequence multiple times.
  */
 #define JBSPTRMATCH_OPCODE 27
@@ -324,7 +324,7 @@ typedef union {
  * imm1: Extended opcode
  * imm2: Jump label offset
  * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs
- * e.g.: "jdnsaeq R0,label,0xc,\002aa\005local\0\0", "jdnsane R0,label,0xc,\002aa\005local\0\0"
+ * e.g.: "jdnsaeq R0,label,\002aa\005local\0\0", "jdnsane R0,label,\002aa\005local\0\0"
  */
 #define JDNSAMATCH_EXT_OPCODE 44
 #define JDNSAMATCHSAFE_EXT_OPCODE 46
