@@ -54,7 +54,6 @@ static match_result_type match_single_name(const u8* needle,
                     *ofs += label_size;
                 }
             } else {
-                is_qname_match = false;
                 *ofs += label_size;
             }
         } else { /* reached the end of the name */
