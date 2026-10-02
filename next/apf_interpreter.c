@@ -641,9 +641,10 @@ static match_result_type match_names(const u8* needles,
         /* move needles pointer to the next needle. */
         do {
             u8 len = *needles++;
-            if (len == 0xFF) continue;
-            if (len > 63) return error_program;
-            needles += len;
+            if (len != 0xFF) {
+                if (len > 63) return error_program;
+                needles += len;
+            }
             if (needles >= needle_bound) return error_program;
         } while (*needles);
         needles++;  /* skip the NULL byte at the end of *a* DNS name */
