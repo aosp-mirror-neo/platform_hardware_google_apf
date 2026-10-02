@@ -26,8 +26,8 @@
 #include "apf_interpreter.h"
 
 #ifndef APF_LOCK
-static inline void apf_global_lock(void) {};
-static inline void apf_global_unlock(void) {};
+static inline void apf_global_lock(void) {}
+static inline void apf_global_unlock(void) {}
 #endif
 
 // C99 static assert, replace with _Static_assert() when we switch to C11.
