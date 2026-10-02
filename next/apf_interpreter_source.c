@@ -818,7 +818,7 @@ static int do_apf_run(apf_context *ctx) {
                     ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
                     memcpy(ctx->tx_buf + dst_offs, ctx->packet + pktcopy_src_offset, copy_len);
                 } else {  // copy from data
-                    ASSERT_IN_RAM_BOUNDS(pktcopy_src_offset + copy_len - 1);
+                    ASSERT_IN_DATA_BOUNDS(pktcopy_src_offset, copy_len);
                     memcpy(ctx->tx_buf + dst_offs, ctx->program + pktcopy_src_offset, copy_len);
                 }
                 dst_offs += copy_len;
