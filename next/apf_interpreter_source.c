@@ -774,7 +774,7 @@ static int do_apf_run(apf_context *ctx) {
                 } else if (imm_len) {
                     // parse ALLOC_XMIT_OPCODE (R=0) immediate
                     static const u8 auto_csum_start[8] = { 26, 26, 34, 38, 22, 22, 22, 22 };
-                    static const u8 auto_csum_ofs[8] =   { 40, 44, 36, 40, 60, 64, 56, 64 };
+                    static const u8 auto_csum_ofs[8] =   { 40, 50, 36, 40, 60, 70, 56, 64 };
                     ip_ofs = 14;
                     csum_ofs = auto_csum_ofs[imm & 7];
                     csum_start = auto_csum_start[imm & 7];

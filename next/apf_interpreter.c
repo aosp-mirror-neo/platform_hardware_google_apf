@@ -362,11 +362,11 @@ typedef union {
  *   immlen>0 -> with checksum offload (transmit(udp) ip_ofs=14 ...)
  *     imm & 7 | type of offload      | ip_ofs | udp | csum_start  | csum_ofs      | partial_csum |
  *         0   | ip4/udp              |   14   |  X  | 14+20-8 =26 | 14+20   +6=40 |   imm >> 3   |
- *         1   | ip4/tcp              |   14   |     | 14+20-8 =26 | 14+20  +10=44 |     --"--    |
+ *         1   | ip4/tcp              |   14   |     | 14+20-8 =26 | 14+20  +16=50 |     --"--    |
  *         2   | ip4/icmp             |   14   |     | 14+20   =34 | 14+20   +2=36 |     --"--    |
  *         3   | ip4/routeralert/icmp |   14   |     | 14+20+4 =38 | 14+20+4 +2=40 |     --"--    |
  *         4   | ip6/udp              |   14   |  X  | 14+40-32=22 | 14+40   +6=60 |     --"--    |
- *         5   | ip6/tcp              |   14   |     | 14+40-32=22 | 14+40  +10=64 |     --"--    |
+ *         5   | ip6/tcp              |   14   |     | 14+40-32=22 | 14+40  +16=70 |     --"--    |
  *         6   | ip6/icmp             |   14   |     | 14+40-32=22 | 14+40   +2=56 |     --"--    |
  *         7   | ip6/routeralert/icmp |   14   |     | 14+40-32=22 | 14+40+8 +2=64 |     --"--    |
  */
@@ -1395,7 +1395,7 @@ static int do_apf_run(apf_context *ctx) {
                 } else if (imm_len) {
                     // parse ALLOC_XMIT_OPCODE (R=0) immediate
                     static const u8 auto_csum_start[8] = { 26, 26, 34, 38, 22, 22, 22, 22 };
-                    static const u8 auto_csum_ofs[8] =   { 40, 44, 36, 40, 60, 64, 56, 64 };
+                    static const u8 auto_csum_ofs[8] =   { 40, 50, 36, 40, 60, 70, 56, 64 };
                     ip_ofs = 14;
                     csum_ofs = auto_csum_ofs[imm & 7];
                     csum_start = auto_csum_start[imm & 7];
