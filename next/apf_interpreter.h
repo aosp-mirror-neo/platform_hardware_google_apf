@@ -327,7 +327,7 @@ int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, u
 /**
  * Transmits (to the CPU) the allocated buffer and deallocates it.
  *
- * Exactly like apf_transmit_rx_buffer() but for ingress direction.
+ * Exactly like apf_transmit_tx_buffer() but for ingress direction.
  *
  * May be delivered to the kernel driver via some out of band control path
  * mechanism, and injected as a received packet.
