@@ -1476,6 +1476,7 @@ static int do_apf_run(apf_context *ctx) {
                 if (imm & 4) qtype2 = qtype1 = (qtype1 << 8) | qtype2;
                 {
                     u32 udp_payload_offset = ctx->R[0];
+                    ASSERT_IN_PACKET_BOUNDS(udp_payload_offset);
                     match_result_type match_rst = match_names(ctx->program + ctx->pc,
                                                               ctx->program + ctx->program_len,
                                                               ctx->packet + udp_payload_offset,
