@@ -234,6 +234,7 @@ TEST(ApfDnsTest, MatchNamesInAnswers) {
     // needles = { *, B.* }
     const uint8_t needles_match2_star[] = {
         0xff,
+        0x00,
         0x01, 'B',
         0xff,
         0x00,
