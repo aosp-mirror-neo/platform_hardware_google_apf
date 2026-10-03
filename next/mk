@@ -1,6 +1,6 @@
 #!/bin/bash
 # Requires:
-#   sudo apt install gcc-arm-linux-gnueabihf gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu
+#   sudo apt install gcc-arm-linux-gnueabihf gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu clang
 
 set -e
 set -u
