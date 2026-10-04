@@ -622,7 +622,7 @@ static match_result_type match_names(const u8* needles,
             match_result_type m = match_single_name(needles, needle_bound, udp, udp_len, &ofs);
             int qtype;
             if (m < nomatch) return m;
-            if (ofs + 2 > udp_len) return error_packet;
+            if (ofs + 4 > udp_len) return error_packet;
             qtype = (int)read_be16(udp + ofs);
             ofs += 4; /* skip be16 qtype & qclass */
             if (question_type1 == -1) continue;
