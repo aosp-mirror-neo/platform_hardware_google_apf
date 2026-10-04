@@ -217,7 +217,7 @@ typedef enum {
  *  Miscellaneous details:
  *
  *  Pre-filled temporary memory slot values
- *    When the APF program begins execution, six of the sixteen memory slots
+ *    When the APF program begins execution, nine of the sixteen memory slots
  *    are pre-filled by the interpreter with values that may be useful for
  *    programs:
  *      #0 to #6 are zero initialized.
@@ -242,7 +242,7 @@ typedef enum {
  *               every N seconds.
  *  Special jump targets:
  *    When an APF program executes a jump to the byte immediately after the last
- *      byte of the progam (i.e., one byte past the end of the program), this
+ *      byte of the program (i.e., one byte past the end of the program), this
  *      signals the program has completed and determined the packet should be
  *      passed to the AP.
  *    When an APF program executes a jump two bytes past the end of the program,
@@ -300,9 +300,9 @@ typedef union {
 #define LDB_OPCODE 1    // Load 1 byte  from immediate offset, e.g. "ldb R0, [5]"
 #define LDH_OPCODE 2    // Load 2 bytes from immediate offset, e.g. "ldh R0, [5]"
 #define LDW_OPCODE 3    // Load 4 bytes from immediate offset, e.g. "ldw R0, [5]"
-#define LDBX_OPCODE 4   // Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R0]"
-#define LDHX_OPCODE 5   // Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R0]"
-#define LDWX_OPCODE 6   // Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R0]"
+#define LDBX_OPCODE 4   // Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R1]"
+#define LDHX_OPCODE 5   // Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R1]"
+#define LDWX_OPCODE 6   // Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R1]"
 #define ADD_OPCODE 7    // Add, e.g. "add R0,5"
 #define MUL_OPCODE 8    // Multiply, e.g. "mul R0,5"
 #define DIV_OPCODE 9    // Divide, e.g. "div R0,5"
