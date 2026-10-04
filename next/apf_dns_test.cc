@@ -58,7 +58,7 @@ TEST(ApfDnsTest, MatchSingleNameWithNoNameCompression) {
     EXPECT_EQ(ofs, 29);
 }
 
-TEST(ApfDnsTest, MatchSingleNameWithoutNameCompression) {
+TEST(ApfDnsTest, MatchSingleNameWithNameCompression) {
     const uint8_t needle_match[] = {
         0x01, 'B',
         0x05, 'L', 'O', 'C', 'A', 'L',
