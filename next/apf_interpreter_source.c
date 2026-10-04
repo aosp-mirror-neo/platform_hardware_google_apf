@@ -704,7 +704,9 @@ static int do_apf_run(apf_context *ctx) {
             break;
           }
           case SH_OPCODE: {  // see above comment!
-            if (arith_signed_imm >= 0)
+            if (arith_signed_imm >= 32 || arith_signed_imm <= -32)
+                ARITH_REG = 0;
+            else if (arith_signed_imm >= 0)
                 ARITH_REG <<= arith_signed_imm;
             else
                 ARITH_REG >>= -arith_signed_imm;
