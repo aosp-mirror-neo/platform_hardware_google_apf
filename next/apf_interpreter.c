@@ -921,10 +921,15 @@ static u32 do_apf_ticks_until_next_timer_event(u32 *precision) {
 
     u32 current_time = apf_get_time_in_ticks();
     s32 diff = (s32)(apf_global_next_timer_abs - current_time);
+    u32 prec = apf_global_timer_precision;
 
-    if (precision) *precision = apf_global_timer_precision;
+    if (diff < 0) {
+        u32 overdue = -(u32)diff;
+        prec = (overdue < prec) ? prec - overdue : 0;
+        diff = 0;
+    }
 
-    if (diff <= 0) return 0;
+    if (precision) *precision = prec;
     return (u32)diff;
 }
 
@@ -973,12 +978,10 @@ static void apf_recalculate_global_timer(void) {
         apf_global_timer_precision = precision;
 
         if (need_to_arm) {
-            u32 current_time = apf_get_time_in_ticks();
-            s32 diff = (s32)(timer_abs - current_time);
-            if (diff < 0) diff = 0;
+            u32 diff = do_apf_ticks_until_next_timer_event(&precision);
 
             apf_global_unlock();
-            apf_set_timer((u32)diff, precision);
+            apf_set_timer(diff, precision);
             return;
         }
     } else {
