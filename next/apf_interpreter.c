@@ -558,8 +558,8 @@ static match_result_type match_single_name(const u8* needle,
         } else if (v) {
             u8 label_size = v;
             if (*ofs + label_size > udp_len) return error_packet;
-            if (needle >= needle_bound) return error_program;
             if (is_qname_match) {
+                if (needle >= needle_bound) return error_program;
                 u8 len = *needle++;
                 if (len == label_size) {
                     if (needle + label_size > needle_bound) return error_program;
@@ -576,7 +576,9 @@ static match_result_type match_single_name(const u8* needle,
             }
         } else { /* reached the end of the name */
             if (first_unread_offset > *ofs) *ofs = first_unread_offset;
-            return (is_qname_match && *needle == 0) ? match : nomatch;
+            if (!is_qname_match) return nomatch;
+            if (needle >= needle_bound) return error_program;
+            return (*needle == 0) ? match : nomatch;
         }
     }
     return error_packet;  /* too many dns domain name levels */
