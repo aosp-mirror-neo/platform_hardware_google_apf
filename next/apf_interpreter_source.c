@@ -871,6 +871,7 @@ static int do_apf_run(apf_context *ctx) {
                         ctx->pc++;
                     }
                     ctx->pc += 2;  // skip the final double 0 needle end
+                    if (ctx->pc > ctx->program_len) return EXCEPTION;
                     // relies on reg_num in {0,1} and match_rst being {false=0, true=1}
                     if (!(reg_num ^ (u32)match_rst)) ctx->pc += jump_offs;
                 }
