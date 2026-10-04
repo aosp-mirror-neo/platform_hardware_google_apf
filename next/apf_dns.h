@@ -33,7 +33,7 @@ static match_result_type match_single_name(const u8* needle,
             w = udp[(*ofs)++];
             if (*ofs > first_unread_offset) first_unread_offset = *ofs;
             new_ofs = (v - 0xC0) * 256u + w;
-            if (new_ofs >= *ofs) return error_packet;  /* RFC 1035 4.1.4 allows only backward pointers */
+            if (new_ofs >= *ofs - 2) return error_packet;  /* RFC 1035 4.1.4 allows only backward pointers */
             *ofs = new_ofs;
         } else if (v > 63) {
             return error_packet;  /* RFC 1035 2.3.4 - label size is 1..63. */
