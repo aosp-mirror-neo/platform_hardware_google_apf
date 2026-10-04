@@ -119,6 +119,7 @@ static match_result_type match_names(const u8* needles,
             ofs += 8; /* skip be16 type, class & be32 ttl */
             if (ofs + 2 > udp_len) return error_packet;
             ofs += 2 + read_be16(udp + ofs);  /* skip be16 rdata length field, plus length bytes */
+            if (ofs > udp_len) return error_packet;
             if (m == match) return match;
         }
         /* move needles pointer to the next needle. */
