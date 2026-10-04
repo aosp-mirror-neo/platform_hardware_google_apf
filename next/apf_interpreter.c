@@ -1439,10 +1439,8 @@ static int do_apf_run(apf_context *ctx) {
                 ASSERT_RETURN(ctx->tx_buf);
                 ASSERT_IN_OUTPUT_BOUNDS(dst_offs, copy_len);
                 if (reg_num == 0) {  // copy from packet
-                    const u32 last_packet_offs = pktcopy_src_offset + copy_len - 1;
-                    ASSERT_IN_PACKET_BOUNDS(pktcopy_src_offset);
-                    ASSERT_RETURN(last_packet_offs >= pktcopy_src_offset);
-                    ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
+                    ASSERT_RETURN(pktcopy_src_offset + copy_len <= ctx->packet_len &&
+                                  pktcopy_src_offset + copy_len >= pktcopy_src_offset);
                     memcpy(ctx->tx_buf + dst_offs, ctx->packet + pktcopy_src_offset, copy_len);
                 } else {  // copy from data
                     ASSERT_IN_DATA_BOUNDS(pktcopy_src_offset, copy_len);
