@@ -17,6 +17,7 @@
 #ifndef TEST_BUF_ALLOCATOR
 #define TEST_BUF_ALLOCATOR
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <linux/if_ether.h>
 
