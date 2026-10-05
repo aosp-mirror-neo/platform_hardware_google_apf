@@ -57,14 +57,19 @@
  *    to load from. The "opcode" field determines which loads are "indexing".
  *  Arithmetic instructions
  *    These instructions perform simple operations, like addition, on register
- *    values. The result of these instructions is always written into R0. One
- *    argument of the arithmetic operation is R0's value. The other argument
- *    of the arithmetic operation is determined by the "register" field:
+ *    values. In APFv2/v4, the result of these instructions is always written
+ *    into R0, one argument of the arithmetic operation is R0's value, and the
+ *    other argument of the arithmetic operation is determined by the "register"
+ *    field:
  *            If the "register" field is 0 then the immediate value following
  *            the first byte of the instruction is used as the other argument
  *            to the arithmetic operation.
  *            If the "register" field is 1 then R1's value is used as the other
  *            argument to the arithmetic operation.
+ *    In APFv6+, if the "length" field is 0 then R0 is updated using R1's value
+ *    as the other argument; otherwise the "register" field selects the
+ *    destination register (R0 or R1) and the immediate value is used as the
+ *    other argument.
  *  Conditional jump instructions
  *    These instructions compare register R0's value with another value, and if
  *    the comparison succeeds, jump (i.e. adjust the program counter). The
@@ -113,7 +118,7 @@
  *               be used by filters that should have a particular lifetime. For
  *               example, it can be used to rate-limit particular packets to one
  *               every N seconds.
- *  Special jump targets:
+ *  Special jump targets (pre-APFv6; APFv6+ uses PASSDROP_OPCODE instead):
  *    When an APF program executes a jump to the byte immediately after the last
  *      byte of the program (i.e., one byte past the end of the program), this
  *      signals the program has completed and determined the packet should be
@@ -121,18 +126,20 @@
  *    When an APF program executes a jump two bytes past the end of the program,
  *      this signals the program has completed and determined the packet should
  *      be dropped.
- *  Jump if byte sequence doesn't match:
+ *  Jump if byte sequence doesn't match (or matches in APFv6+):
  *    This is a special instruction to facilitate matching long sequences of
  *    bytes in the packet. Initially it is encoded like a conditional jump
  *    instruction with two exceptions:
  *      The first byte of the instruction is always followed by two immediate
  *        fields: The first immediate field is the jump target offset like other
  *        conditional jump instructions. The second immediate field specifies the
- *        number of bytes to compare.
+ *        number of bytes to compare (and in APFv6+, an optional count of byte
+ *        sequences).
  *      These two immediate fields are followed by a sequence of bytes. These
  *        bytes are compared with the bytes in the packet starting from the
- *        position specified by the value of the register specified by the
- *        "register" field of the instruction.
+ *        position specified by the value of R0 (or, pre-APFv6, the register
+ *        specified by the "register" field of the instruction; in APFv6+, the
+ *        "register" field selects between not-equal and equal matching).
  */
 
 // Number of temporary memory slots, see ldm/stm instructions.
@@ -145,12 +152,12 @@ typedef union {
   struct {
     u32 pad[7];               // 0..6
     u32 internal_state;       // 7:  Internal state bitmask (see APF_INTERNAL_STATE_*).
-    u32 apf_version;          // 8:  Initialized with apf_version()
+    u32 apf_version;          // 8:  Initialized with APF_VERSION
     u32 filter_age_16384ths;  // 9:  Age since filter installed in 1/16384 seconds.
     u32 tx_buf_offset;        // 10: Offset in tx_buf where next byte will be written
     u32 program_size;         // 11: Size of program (in bytes)
     u32 ram_len;              // 12: Total size of program + data, ie. ram_len
-    u32 ipv4_header_size;     // 13: 4*([APF_FRAME_HEADER_SIZE]&15)
+    u32 ipv4_header_size;     // 13: 4*([ETH_HLEN]&15)
     u32 packet_size;          // 14: Size of packet in bytes.
     u32 filter_age;           // 15: Age since filter installed in seconds.
   } named;
@@ -274,7 +281,7 @@ typedef union {
  * u8 imm3 - offset from start of buffer to store L4 checksum (255 for no L4 checksum)
  * u8 imm4 - offset from start of buffer to begin L4 checksum calculation (present iff imm3 != 255)
  * u16 imm5 - partial checksum value to include in L4 checksum (present iff imm3 != 255)
- * "e.g. transmit"
+ * e.g. "transmit"
  */
 #define TRANSMIT_EXT_OPCODE 37
 
