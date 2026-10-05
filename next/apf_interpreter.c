@@ -773,7 +773,10 @@ struct apf_state {
     u8 ram[];
 };
 
+// The APF ram section immediately follows the apf_state struct.
+// These static asserts ensure that the ram section is u32 aligned.
 APF_STATIC_ASSERT(!(offsetof(struct apf_state, ram) % sizeof(u32)));
+APF_STATIC_ASSERT(!(sizeof(struct apf_state) % sizeof(u32)));
 
 typedef struct {
     // Note: the following 4 fields take up exactly 8 bytes.
@@ -797,10 +800,6 @@ typedef struct {
     // Note: any extra u16s go here, then u8s
 } apf_context;
 
-// The APF ram section immediately follows the apf_state struct.
-// This static assert ensures that the ram section is u32 aligned.
-APF_STATIC_ASSERT(!(sizeof(struct apf_state) % sizeof(u32)));
-
 void apf_get_info(struct apf_info *info) {
     if (!info) return;
     apf_global_lock();
@@ -823,7 +822,6 @@ FOR_KERNEL(apf_set_id)
 
 struct apf_state *apf_enable(struct apf_fw_ctx *ctx, u32 ram_size) {
     if (ram_size > 65535) return NULL;
-    if (ram_size > APF_STATE_MEMORY_TOTAL_LIMIT) return NULL;
 
     u32 total_size = sizeof(struct apf_state) + ram_size;
 
