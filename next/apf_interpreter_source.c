@@ -111,12 +111,12 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
                            u32 program_len, const u8 *packet, u32 packet_len,
                            const u32* memory, u32 ram_len);
 #else
-#define APF_TRACE_HOOK(pc, regs, program, program_len, packet, packet_len, memory, memory_len) \
-    do { /* nop*/                                                                              \
+#define APF_TRACE_HOOK(pc, regs, program, program_len, packet, packet_len, memory, ram_len) \
+    do { /* nop*/                                                                           \
     } while (0)
 #endif
 
-// Return code indicating "packet" should accepted.
+// Return code indicating "packet" should be accepted.
 #define PASS 1
 // Return code indicating "packet" should be accepted (and something unexpected happened).
 #define EXCEPTION 2
@@ -124,7 +124,7 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
 #define DROP 0
 // Verify an internal condition and accept packet if it fails.
 #define ASSERT_RETURN(c) if (!(c)) return EXCEPTION
-// If "c" is of an unsigned type, generate a compile warning that gets promoted to an error.
+// If "c" is of a signed type, generate a compile warning that gets promoted to an error.
 // This makes bounds checking simpler because ">= 0" can be avoided. Otherwise adding
 // superfluous ">= 0" with unsigned expressions generates compile warnings.
 #define ENFORCE_UNSIGNED(c) ((c)==(u32)(c))
@@ -416,7 +416,7 @@ static bool do_apf_process_timer_event(u32 current_time) {
     for (struct apf_state *state = apf_state_list_head; state; state = state->next) {
         if (!state->timer_set) continue;
 
-        // If the next timer is in the future (accounting for wrap-around), stop processing.
+        // If the next timer is in the future (accounting for wrap-around), skip this state.
         if (before(current_time, state->next_timer_abs)) continue;
 
         // TODO: Implement the actual trigger timer logic for 'state' here.
@@ -463,7 +463,7 @@ static inline u16 decode_be16(apf_context *ctx) {
 }
 
 // Decode an immediate, lengths [0..4] all work, does not do range checking.
-// But note that program is at least 20 bytes shorter than ram, so first few
+// But note that program is at least 24 bytes shorter than ram, so first few
 // immediates can always be safely decoded without exceeding ram buffer.
 static inline u32 decode_imm(apf_context *ctx, u32 length) {
     u32 v = 0;
@@ -518,7 +518,7 @@ static int do_apf_run(apf_context *ctx) {
                                  ENFORCE_UNSIGNED(size) && \
                                  (p) + (size) <= ctx->tx_buf_len && \
                                  (p) + (size) >= (p))
-// Accept packet if not write within allocated output buffer
+// Accept packet if write not within allocated output buffer
 #define ASSERT_IN_OUTPUT_BOUNDS(p, size) ASSERT_RETURN(IN_OUTPUT_BOUNDS(p, size))
 
     do {
@@ -756,9 +756,6 @@ static int do_apf_run(apf_context *ctx) {
                 break;
               case TRANSMIT_EXT_OPCODE:
               do_transmit: {
-                // tx_buf_len cannot be large because we'd run out of RAM,
-                // so the above unsigned comparison effectively guarantees casting pkt_len
-                // to a signed value does not result in it going negative.
                 u8 ip_ofs;
                 u8 csum_ofs;
                 u8 csum_start = 0;
@@ -787,12 +784,15 @@ static int do_apf_run(apf_context *ctx) {
                     ip_ofs = csum_ofs = 255;
                 }
                 ASSERT_RETURN(ctx->tx_buf);
-                // If pkt_len > allocate_buffer_len, it means sth. wrong
+                // If pkt_len > ctx->tx_buf_len, it means sth. wrong
                 // happened and the tx_buf should be deallocated.
                 if (pkt_len > ctx->tx_buf_len) {
                     do_discard_buffer(ctx);
                     return EXCEPTION;
                 }
+                // tx_buf_len cannot be large because we'd run out of RAM,
+                // so the above unsigned comparison effectively guarantees casting pkt_len
+                // to a signed value does not result in it going negative.
                 {
                     int dscp = csum_and_return_dscp(ctx->tx_buf, (s32)pkt_len, ip_ofs,
                                                     partial_csum, csum_start, csum_ofs, udp);
