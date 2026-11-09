@@ -20,13 +20,13 @@
 
 #include "apf.h"
 
-// Return code indicating "packet" should accepted.
+// Return code indicating "packet" should be accepted.
 #define PASS_PACKET 1
 // Return code indicating "packet" should be dropped.
 #define DROP_PACKET 0
 // Verify an internal condition and accept packet if it fails.
 #define ASSERT_RETURN(c) if (!(c)) return PASS_PACKET
-// If "c" is of an unsigned type, generate a compile warning that gets promoted to an error.
+// If "c" is of a signed type, generate a compile warning that gets promoted to an error.
 // This makes bounds checking simpler because ">= 0" can be avoided. Otherwise adding
 // superfluous ">= 0" with unsigned expressions generates compile warnings.
 #define ENFORCE_UNSIGNED(c) ((c)==(uint32_t)(c))

@@ -113,14 +113,19 @@ typedef enum {
  *    to load from. The "opcode" field determines which loads are "indexing".
  *  Arithmetic instructions
  *    These instructions perform simple operations, like addition, on register
- *    values. The result of these instructions is always written into R0. One
- *    argument of the arithmetic operation is R0's value. The other argument
- *    of the arithmetic operation is determined by the "register" field:
+ *    values. In APFv2/v4, the result of these instructions is always written
+ *    into R0, one argument of the arithmetic operation is R0's value, and the
+ *    other argument of the arithmetic operation is determined by the "register"
+ *    field:
  *            If the "register" field is 0 then the immediate value following
  *            the first byte of the instruction is used as the other argument
  *            to the arithmetic operation.
  *            If the "register" field is 1 then R1's value is used as the other
  *            argument to the arithmetic operation.
+ *    In APFv6+, if the "length" field is 0 then R0 is updated using R1's value
+ *    as the other argument; otherwise the "register" field selects the
+ *    destination register (R0 or R1) and the immediate value is used as the
+ *    other argument.
  *  Conditional jump instructions
  *    These instructions compare register R0's value with another value, and if
  *    the comparison succeeds, jump (i.e. adjust the program counter). The
@@ -146,7 +151,7 @@ typedef enum {
  *  Miscellaneous details:
  *
  *  Pre-filled temporary memory slot values
- *    When the APF program begins execution, six of the sixteen memory slots
+ *    When the APF program begins execution, eight of the sixteen memory slots
  *    are pre-filled by the interpreter with values that may be useful for
  *    programs:
  *      #0 to #7 are zero initialized.
@@ -167,26 +172,28 @@ typedef enum {
  *               be used by filters that should have a particular lifetime. For
  *               example, it can be used to rate-limit particular packets to one
  *               every N seconds.
- *  Special jump targets:
+ *  Special jump targets (pre-APFv6; APFv6+ uses PASSDROP_OPCODE instead):
  *    When an APF program executes a jump to the byte immediately after the last
- *      byte of the progam (i.e., one byte past the end of the program), this
+ *      byte of the program (i.e., one byte past the end of the program), this
  *      signals the program has completed and determined the packet should be
  *      passed to the AP.
  *    When an APF program executes a jump two bytes past the end of the program,
  *      this signals the program has completed and determined the packet should
  *      be dropped.
- *  Jump if byte sequence doesn't match:
+ *  Jump if byte sequence doesn't match (or matches in APFv6+):
  *    This is a special instruction to facilitate matching long sequences of
  *    bytes in the packet. Initially it is encoded like a conditional jump
  *    instruction with two exceptions:
  *      The first byte of the instruction is always followed by two immediate
  *        fields: The first immediate field is the jump target offset like other
  *        conditional jump instructions. The second immediate field specifies the
- *        number of bytes to compare.
+ *        number of bytes to compare (and in APFv6+, an optional count of byte
+ *        sequences).
  *      These two immediate fields are followed by a sequence of bytes. These
  *        bytes are compared with the bytes in the packet starting from the
- *        position specified by the value of the register specified by the
- *        "register" field of the instruction.
+ *        position specified by the value of R0 (or, pre-APFv6, the register
+ *        specified by the "register" field of the instruction; in APFv6+, the
+ *        "register" field selects between not-equal and equal matching).
  */
 
 /* Number of temporary memory slots, see ldm/stm instructions. */
@@ -201,7 +208,7 @@ typedef union {
     u32 tx_buf_offset;        /* 10: Offset in tx_buf where next byte will be written */
     u32 program_size;         /* 11: Size of program (in bytes) */
     u32 ram_len;              /* 12: Total size of program + data, ie. ram_len */
-    u32 ipv4_header_size;     /* 13: 4*([APF_FRAME_HEADER_SIZE]&15) */
+    u32 ipv4_header_size;     /* 13: 4*([ETH_HLEN]&15) */
     u32 packet_size;          /* 14: Size of packet in bytes. */
     u32 filter_age;           /* 15: Age since filter installed in seconds. */
   } named;
@@ -224,9 +231,9 @@ typedef union {
 #define LDB_OPCODE 1    /* Load 1 byte  from immediate offset, e.g. "ldb R0, [5]" */
 #define LDH_OPCODE 2    /* Load 2 bytes from immediate offset, e.g. "ldh R0, [5]" */
 #define LDW_OPCODE 3    /* Load 4 bytes from immediate offset, e.g. "ldw R0, [5]" */
-#define LDBX_OPCODE 4   /* Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R0]" */
-#define LDHX_OPCODE 5   /* Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R0]" */
-#define LDWX_OPCODE 6   /* Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R0]" */
+#define LDBX_OPCODE 4   /* Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R1]" */
+#define LDHX_OPCODE 5   /* Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R1]" */
+#define LDWX_OPCODE 6   /* Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R1]" */
 #define ADD_OPCODE 7    /* Add, e.g. "add R0,5" */
 #define MUL_OPCODE 8    /* Multiply, e.g. "mul R0,5" */
 #define DIV_OPCODE 9    /* Divide, e.g. "div R0,5" */
@@ -294,7 +301,7 @@ typedef union {
  * u8 imm3 - offset from start of buffer to store L4 checksum (255 for no L4 checksum)
  * u8 imm4 - offset from start of buffer to begin L4 checksum calculation (present iff imm3 != 255)
  * u16 imm5 - partial checksum value to include in L4 checksum (present iff imm3 != 255)
- * "e.g. transmit"
+ * e.g. "transmit"
  */
 #define TRANSMIT_EXT_OPCODE 37
 /* Write 1, 2 or 4 byte value from register to the output buffer and auto-increment the
@@ -337,7 +344,7 @@ typedef union {
  * imm1: Extended opcode
  * imm2: Jump label offset
  * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs
- * e.g.: "jdnsaeq R0,label,0xc,\002aa\005local\0\0", "jdnsane R0,label,0xc,\002aa\005local\0\0"
+ * e.g.: "jdnsaeq R0,label,\002aa\005local\0\0", "jdnsane R0,label,\002aa\005local\0\0"
  */
 #define JDNSAMATCH_EXT_OPCODE 44
 #define JDNSAMATCHSAFE_EXT_OPCODE 46
@@ -593,7 +600,7 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
     } while (0)
 #endif
 
-/* Return code indicating "packet" should accepted. */
+/* Return code indicating "packet" should be accepted. */
 #define PASS 1
 /* Return code indicating "packet" should be accepted (and something unexpected happened). */
 #define EXCEPTION 2
@@ -601,7 +608,7 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
 #define DROP 0
 /* Verify an internal condition and accept packet if it fails. */
 #define ASSERT_RETURN(c) if (!(c)) return EXCEPTION
-/* If "c" is of an unsigned type, generate a compile warning that gets promoted to an error. */
+/* If "c" is of a signed type, generate a compile warning that gets promoted to an error. */
 /* This makes bounds checking simpler because ">= 0" can be avoided. Otherwise adding */
 /* superfluous ">= 0" with unsigned expressions generates compile warnings. */
 #define ENFORCE_UNSIGNED(c) ((c)==(u32)(c))
@@ -702,7 +709,7 @@ static int do_apf_run(apf_context* ctx) {
                                  ENFORCE_UNSIGNED(size) && \
                                  (p) + (size) <= ctx->tx_buf_len && \
                                  (p) + (size) >= (p))
-/* Accept packet if not write within allocated output buffer */
+/* Accept packet if write not within allocated output buffer */
 #define ASSERT_IN_OUTPUT_BOUNDS(p, size) ASSERT_RETURN(IN_OUTPUT_BOUNDS(p, size))
 
     do {
@@ -907,16 +914,13 @@ static int do_apf_run(apf_context* ctx) {
                 ctx->mem.named.tx_buf_offset = 0;
                 break;
               case TRANSMIT_EXT_OPCODE: {
-                /* tx_buf_len cannot be large because we'd run out of RAM, */
-                /* so the above unsigned comparison effectively guarantees casting pkt_len */
-                /* to a signed value does not result in it going negative. */
                 u8 ip_ofs = DECODE_U8();              /* 2nd imm, at worst 5 B past prog_len */
                 u8 csum_ofs = DECODE_U8();            /* 3rd imm, at worst 6 B past prog_len */
                 u8 csum_start = 0;
                 u16 partial_csum = 0;
                 u32 pkt_len = ctx->mem.named.tx_buf_offset;
                 ASSERT_RETURN(ctx->tx_buf);
-                /* If pkt_len > allocate_buffer_len, it means sth. wrong */
+                /* If pkt_len > ctx->tx_buf_len, it means sth. wrong */
                 /* happened and the tx_buf should be deallocated. */
                 if (pkt_len > ctx->tx_buf_len) {
                     do_discard_buffer(ctx);
@@ -926,6 +930,9 @@ static int do_apf_run(apf_context* ctx) {
                     csum_start = DECODE_U8();         /* 4th imm, at worst 7 B past prog_len */
                     partial_csum = decode_be16(ctx);  /* 5th imm, at worst 9 B past prog_len */
                 }
+                /* tx_buf_len cannot be large because we'd run out of RAM, */
+                /* so the above unsigned comparison effectively guarantees casting pkt_len */
+                /* to a signed value does not result in it going negative. */
                 {
                     int dscp = apf_internal_csum_and_return_dscp(ctx->tx_buf, (s32)pkt_len, ip_ofs,
                                                     partial_csum, csum_start, csum_ofs,
