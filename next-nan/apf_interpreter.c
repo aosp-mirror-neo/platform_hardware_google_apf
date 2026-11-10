@@ -26,8 +26,8 @@
 #include "apf_interpreter.h"
 
 #ifndef APF_LOCK
-static inline void apf_global_lock(void) {};
-static inline void apf_global_unlock(void) {};
+static inline void apf_global_lock(void) {}
+static inline void apf_global_unlock(void) {}
 #endif
 
 // C99 static assert, replace with _Static_assert() when we switch to C11.
@@ -184,14 +184,19 @@ typedef enum {
  *    to load from. The "opcode" field determines which loads are "indexing".
  *  Arithmetic instructions
  *    These instructions perform simple operations, like addition, on register
- *    values. The result of these instructions is always written into R0. One
- *    argument of the arithmetic operation is R0's value. The other argument
- *    of the arithmetic operation is determined by the "register" field:
+ *    values. In APFv2/v4, the result of these instructions is always written
+ *    into R0, one argument of the arithmetic operation is R0's value, and the
+ *    other argument of the arithmetic operation is determined by the "register"
+ *    field:
  *            If the "register" field is 0 then the immediate value following
  *            the first byte of the instruction is used as the other argument
  *            to the arithmetic operation.
  *            If the "register" field is 1 then R1's value is used as the other
  *            argument to the arithmetic operation.
+ *    In APFv6+, if the "length" field is 0 then R0 is updated using R1's value
+ *    as the other argument; otherwise the "register" field selects the
+ *    destination register (R0 or R1) and the immediate value is used as the
+ *    other argument.
  *  Conditional jump instructions
  *    These instructions compare register R0's value with another value, and if
  *    the comparison succeeds, jump (i.e. adjust the program counter). The
@@ -217,7 +222,7 @@ typedef enum {
  *  Miscellaneous details:
  *
  *  Pre-filled temporary memory slot values
- *    When the APF program begins execution, six of the sixteen memory slots
+ *    When the APF program begins execution, nine of the sixteen memory slots
  *    are pre-filled by the interpreter with values that may be useful for
  *    programs:
  *      #0 to #6 are zero initialized.
@@ -240,26 +245,28 @@ typedef enum {
  *               be used by filters that should have a particular lifetime. For
  *               example, it can be used to rate-limit particular packets to one
  *               every N seconds.
- *  Special jump targets:
+ *  Special jump targets (pre-APFv6; APFv6+ uses PASSDROP_OPCODE instead):
  *    When an APF program executes a jump to the byte immediately after the last
- *      byte of the progam (i.e., one byte past the end of the program), this
+ *      byte of the program (i.e., one byte past the end of the program), this
  *      signals the program has completed and determined the packet should be
  *      passed to the AP.
  *    When an APF program executes a jump two bytes past the end of the program,
  *      this signals the program has completed and determined the packet should
  *      be dropped.
- *  Jump if byte sequence doesn't match:
+ *  Jump if byte sequence doesn't match (or matches in APFv6+):
  *    This is a special instruction to facilitate matching long sequences of
  *    bytes in the packet. Initially it is encoded like a conditional jump
  *    instruction with two exceptions:
  *      The first byte of the instruction is always followed by two immediate
  *        fields: The first immediate field is the jump target offset like other
  *        conditional jump instructions. The second immediate field specifies the
- *        number of bytes to compare.
+ *        number of bytes to compare (and in APFv6+, an optional count of byte
+ *        sequences).
  *      These two immediate fields are followed by a sequence of bytes. These
  *        bytes are compared with the bytes in the packet starting from the
- *        position specified by the value of the register specified by the
- *        "register" field of the instruction.
+ *        position specified by the value of R0 (or, pre-APFv6, the register
+ *        specified by the "register" field of the instruction; in APFv6+, the
+ *        "register" field selects between not-equal and equal matching).
  */
 
 // Number of temporary memory slots, see ldm/stm instructions.
@@ -272,12 +279,12 @@ typedef union {
   struct {
     u32 pad[7];               // 0..6
     u32 internal_state;       // 7:  Internal state bitmask (see APF_INTERNAL_STATE_*).
-    u32 apf_version;          // 8:  Initialized with apf_version()
+    u32 apf_version;          // 8:  Initialized with APF_VERSION
     u32 filter_age_16384ths;  // 9:  Age since filter installed in 1/16384 seconds.
     u32 tx_buf_offset;        // 10: Offset in tx_buf where next byte will be written
     u32 program_size;         // 11: Size of program (in bytes)
     u32 ram_len;              // 12: Total size of program + data, ie. ram_len
-    u32 ipv4_header_size;     // 13: 4*([APF_FRAME_HEADER_SIZE]&15)
+    u32 ipv4_header_size;     // 13: 4*([ETH_HLEN]&15)
     u32 packet_size;          // 14: Size of packet in bytes.
     u32 filter_age;           // 15: Age since filter installed in seconds.
   } named;
@@ -300,9 +307,9 @@ typedef union {
 #define LDB_OPCODE 1    // Load 1 byte  from immediate offset, e.g. "ldb R0, [5]"
 #define LDH_OPCODE 2    // Load 2 bytes from immediate offset, e.g. "ldh R0, [5]"
 #define LDW_OPCODE 3    // Load 4 bytes from immediate offset, e.g. "ldw R0, [5]"
-#define LDBX_OPCODE 4   // Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R0]"
-#define LDHX_OPCODE 5   // Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R0]"
-#define LDWX_OPCODE 6   // Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R0]"
+#define LDBX_OPCODE 4   // Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R1]"
+#define LDHX_OPCODE 5   // Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R1]"
+#define LDWX_OPCODE 6   // Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R1]"
 #define ADD_OPCODE 7    // Add, e.g. "add R0,5"
 #define MUL_OPCODE 8    // Multiply, e.g. "mul R0,5"
 #define DIV_OPCODE 9    // Divide, e.g. "div R0,5"
@@ -349,8 +356,8 @@ typedef union {
  * imm1 is jmp target
  * imm2(u8) is offset [0..255] into packet
  * imm3(u8) is (count - 1) * 16 + (compare_len - 1), thus both count & compare_len are in [1..16]
- * which is followed by compare_len u8 'even offset' ptrs into max 526 byte data section to compare
- * against - ie. they are multipied by 2 and have 3 added to them (to skip over 'datajmp u16')
+ * which is followed by count u8 'even offset' ptrs into max 526 byte data section to compare
+ * against - ie. they are multiplied by 2 and have 3 added to them (to skip over 'datajmp u16')
  * Warning: do not specify the same byte sequence multiple times.
  */
 #define JBSPTRMATCH_OPCODE 27
@@ -362,11 +369,11 @@ typedef union {
  *   immlen>0 -> with checksum offload (transmit(udp) ip_ofs=14 ...)
  *     imm & 7 | type of offload      | ip_ofs | udp | csum_start  | csum_ofs      | partial_csum |
  *         0   | ip4/udp              |   14   |  X  | 14+20-8 =26 | 14+20   +6=40 |   imm >> 3   |
- *         1   | ip4/tcp              |   14   |     | 14+20-8 =26 | 14+20  +10=44 |     --"--    |
+ *         1   | ip4/tcp              |   14   |     | 14+20-8 =26 | 14+20  +16=50 |     --"--    |
  *         2   | ip4/icmp             |   14   |     | 14+20   =34 | 14+20   +2=36 |     --"--    |
  *         3   | ip4/routeralert/icmp |   14   |     | 14+20+4 =38 | 14+20+4 +2=40 |     --"--    |
  *         4   | ip6/udp              |   14   |  X  | 14+40-32=22 | 14+40   +6=60 |     --"--    |
- *         5   | ip6/tcp              |   14   |     | 14+40-32=22 | 14+40  +10=64 |     --"--    |
+ *         5   | ip6/tcp              |   14   |     | 14+40-32=22 | 14+40  +16=70 |     --"--    |
  *         6   | ip6/icmp             |   14   |     | 14+40-32=22 | 14+40   +2=56 |     --"--    |
  *         7   | ip6/routeralert/icmp |   14   |     | 14+40-32=22 | 14+40+8 +2=64 |     --"--    |
  */
@@ -401,7 +408,7 @@ typedef union {
  * u8 imm3 - offset from start of buffer to store L4 checksum (255 for no L4 checksum)
  * u8 imm4 - offset from start of buffer to begin L4 checksum calculation (present iff imm3 != 255)
  * u16 imm5 - partial checksum value to include in L4 checksum (present iff imm3 != 255)
- * "e.g. transmit"
+ * e.g. "transmit"
  */
 #define TRANSMIT_EXT_OPCODE 37
 
@@ -451,7 +458,7 @@ typedef union {
  * imm1: Extended opcode
  * imm2: Jump label offset
  * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs
- * e.g.: "jdnsaeq R0,label,0xc,\002aa\005local\0\0", "jdnsane R0,label,0xc,\002aa\005local\0\0"
+ * e.g.: "jdnsaeq R0,label,\002aa\005local\0\0", "jdnsane R0,label,\002aa\005local\0\0"
  */
 #define JDNSAMATCH_EXT_OPCODE 44
 #define JDNSAMATCHSAFE_EXT_OPCODE 46
@@ -551,15 +558,15 @@ static match_result_type match_single_name(const u8* needle,
             w = udp[(*ofs)++];
             if (*ofs > first_unread_offset) first_unread_offset = *ofs;
             new_ofs = (v - 0xC0) * 256u + w;
-            if (new_ofs >= *ofs) return error_packet;  /* RFC 1035 4.1.4 allows only backward pointers */
+            if (new_ofs >= *ofs - 2) return error_packet;  /* RFC 1035 4.1.4 allows only backward pointers */
             *ofs = new_ofs;
         } else if (v > 63) {
             return error_packet;  /* RFC 1035 2.3.4 - label size is 1..63. */
         } else if (v) {
             u8 label_size = v;
             if (*ofs + label_size > udp_len) return error_packet;
-            if (needle >= needle_bound) return error_program;
             if (is_qname_match) {
+                if (needle >= needle_bound) return error_program;
                 u8 len = *needle++;
                 if (len == label_size) {
                     if (needle + label_size > needle_bound) return error_program;
@@ -572,12 +579,13 @@ static match_result_type match_single_name(const u8* needle,
                     *ofs += label_size;
                 }
             } else {
-                is_qname_match = false;
                 *ofs += label_size;
             }
         } else { /* reached the end of the name */
             if (first_unread_offset > *ofs) *ofs = first_unread_offset;
-            return (is_qname_match && *needle == 0) ? match : nomatch;
+            if (!is_qname_match) return nomatch;
+            if (needle >= needle_bound) return error_program;
+            return (*needle == 0) ? match : nomatch;
         }
     }
     return error_packet;  /* too many dns domain name levels */
@@ -621,7 +629,7 @@ static match_result_type match_names(const u8* needles,
             match_result_type m = match_single_name(needles, needle_bound, udp, udp_len, &ofs);
             int qtype;
             if (m < nomatch) return m;
-            if (ofs + 2 > udp_len) return error_packet;
+            if (ofs + 4 > udp_len) return error_packet;
             qtype = (int)read_be16(udp + ofs);
             ofs += 4; /* skip be16 qtype & qclass */
             if (question_type1 == -1) continue;
@@ -636,14 +644,16 @@ static match_result_type match_names(const u8* needles,
             ofs += 8; /* skip be16 type, class & be32 ttl */
             if (ofs + 2 > udp_len) return error_packet;
             ofs += 2 + read_be16(udp + ofs);  /* skip be16 rdata length field, plus length bytes */
+            if (ofs > udp_len) return error_packet;
             if (m == match) return match;
         }
         /* move needles pointer to the next needle. */
         do {
             u8 len = *needles++;
-            if (len == 0xFF) continue;
-            if (len > 63) return error_program;
-            needles += len;
+            if (len != 0xFF) {
+                if (len > 63) return error_program;
+                needles += len;
+            }
             if (needles >= needle_bound) return error_program;
         } while (*needles);
         needles++;  /* skip the NULL byte at the end of *a* DNS name */
@@ -732,12 +742,12 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
                            u32 program_len, const u8 *packet, u32 packet_len,
                            const u32* memory, u32 ram_len);
 #else
-#define APF_TRACE_HOOK(pc, regs, program, program_len, packet, packet_len, memory, memory_len) \
-    do { /* nop*/                                                                              \
+#define APF_TRACE_HOOK(pc, regs, program, program_len, packet, packet_len, memory, ram_len) \
+    do { /* nop*/                                                                           \
     } while (0)
 #endif
 
-// Return code indicating "packet" should accepted.
+// Return code indicating "packet" should be accepted.
 #define PASS 1
 // Return code indicating "packet" should be accepted (and something unexpected happened).
 #define EXCEPTION 2
@@ -745,7 +755,7 @@ extern void APF_TRACE_HOOK(u32 pc, const u32* regs, const u8* program,
 #define DROP 0
 // Verify an internal condition and accept packet if it fails.
 #define ASSERT_RETURN(c) if (!(c)) return EXCEPTION
-// If "c" is of an unsigned type, generate a compile warning that gets promoted to an error.
+// If "c" is of a signed type, generate a compile warning that gets promoted to an error.
 // This makes bounds checking simpler because ">= 0" can be avoided. Otherwise adding
 // superfluous ">= 0" with unsigned expressions generates compile warnings.
 #define ENFORCE_UNSIGNED(c) ((c)==(u32)(c))
@@ -770,7 +780,10 @@ struct apf_state {
     u8 ram[];
 };
 
+// The APF ram section immediately follows the apf_state struct.
+// These static asserts ensure that the ram section is u32 aligned.
 APF_STATIC_ASSERT(!(offsetof(struct apf_state, ram) % sizeof(u32)));
+APF_STATIC_ASSERT(!(sizeof(struct apf_state) % sizeof(u32)));
 
 typedef struct {
     // Note: the following 4 fields take up exactly 8 bytes.
@@ -794,10 +807,6 @@ typedef struct {
     // Note: any extra u16s go here, then u8s
 } apf_context;
 
-// The APF ram section immediately follows the apf_state struct.
-// This static assert ensures that the ram section is u32 aligned.
-APF_STATIC_ASSERT(!(sizeof(struct apf_state) % sizeof(u32)));
-
 void apf_get_info(struct apf_info *info) {
     if (!info) return;
     apf_global_lock();
@@ -820,7 +829,6 @@ FOR_KERNEL(apf_set_id)
 
 struct apf_state *apf_enable(struct apf_fw_ctx *ctx, u32 ram_size) {
     if (ram_size > 65535) return NULL;
-    if (ram_size > APF_STATE_MEMORY_TOTAL_LIMIT) return NULL;
 
     u32 total_size = sizeof(struct apf_state) + ram_size;
 
@@ -918,10 +926,15 @@ static u32 do_apf_ticks_until_next_timer_event(u32 *precision) {
 
     u32 current_time = apf_get_time_in_ticks();
     s32 diff = (s32)(apf_global_next_timer_abs - current_time);
+    u32 prec = apf_global_timer_precision;
 
-    if (precision) *precision = apf_global_timer_precision;
+    if (diff < 0) {
+        u32 overdue = -(u32)diff;
+        prec = (overdue < prec) ? prec - overdue : 0;
+        diff = 0;
+    }
 
-    if (diff <= 0) return 0;
+    if (precision) *precision = prec;
     return (u32)diff;
 }
 
@@ -942,26 +955,25 @@ static bool before(u32 a, u32 b) {
 static void apf_recalculate_global_timer(void) {
     bool any_timer_set = false;
     u32 timer_abs = 0;
-    u32 precision = 0xFFFFFFFF;
+    u32 timer_end = 0;
 
     apf_global_lock();
     for (struct apf_state *state = apf_state_list_head; state; state = state->next) {
         if (!state->timer_set) continue;
 
+        u32 end = state->next_timer_abs + state->timer_precision;
         if (!any_timer_set) {
             any_timer_set = true;
             timer_abs = state->next_timer_abs;
-            precision = state->timer_precision;
+            timer_end = end;
         } else {
-            if (before(state->next_timer_abs + state->timer_precision, timer_abs + precision)) {
-                precision = state->next_timer_abs + state->timer_precision - timer_abs;
-            }
-
             if (before(state->next_timer_abs, timer_abs)) timer_abs = state->next_timer_abs;
+            if (before(end, timer_end)) timer_end = end;
         }
     }
 
     if (any_timer_set) {
+        u32 precision = timer_end - timer_abs;
         bool need_to_arm = !apf_global_timer_set
             || (apf_global_next_timer_abs != timer_abs)
             || (apf_global_timer_precision != precision);
@@ -971,12 +983,10 @@ static void apf_recalculate_global_timer(void) {
         apf_global_timer_precision = precision;
 
         if (need_to_arm) {
-            u32 current_time = apf_get_time_in_ticks();
-            s32 diff = (s32)(timer_abs - current_time);
-            if (diff < 0) diff = 0;
+            u32 diff = do_apf_ticks_until_next_timer_event(&precision);
 
             apf_global_unlock();
-            apf_set_timer((u32)diff, precision);
+            apf_set_timer(diff, precision);
             return;
         }
     } else {
@@ -1037,7 +1047,7 @@ static bool do_apf_process_timer_event(u32 current_time) {
     for (struct apf_state *state = apf_state_list_head; state; state = state->next) {
         if (!state->timer_set) continue;
 
-        // If the next timer is in the future (accounting for wrap-around), stop processing.
+        // If the next timer is in the future (accounting for wrap-around), skip this state.
         if (before(current_time, state->next_timer_abs)) continue;
 
         // TODO: Implement the actual trigger timer logic for 'state' here.
@@ -1084,7 +1094,7 @@ static inline u16 decode_be16(apf_context *ctx) {
 }
 
 // Decode an immediate, lengths [0..4] all work, does not do range checking.
-// But note that program is at least 20 bytes shorter than ram, so first few
+// But note that program is at least 24 bytes shorter than ram, so first few
 // immediates can always be safely decoded without exceeding ram buffer.
 static inline u32 decode_imm(apf_context *ctx, u32 length) {
     u32 v = 0;
@@ -1139,7 +1149,7 @@ static int do_apf_run(apf_context *ctx) {
                                  ENFORCE_UNSIGNED(size) && \
                                  (p) + (size) <= ctx->tx_buf_len && \
                                  (p) + (size) >= (p))
-// Accept packet if not write within allocated output buffer
+// Accept packet if write not within allocated output buffer
 #define ASSERT_IN_OUTPUT_BOUNDS(p, size) ASSERT_RETURN(IN_OUTPUT_BOUNDS(p, size))
 
     do {
@@ -1323,7 +1333,9 @@ static int do_apf_run(apf_context *ctx) {
             break;
           }
           case SH_OPCODE: {  // see above comment!
-            if (arith_signed_imm >= 0)
+            if (arith_signed_imm >= 32 || arith_signed_imm <= -32)
+                ARITH_REG = 0;
+            else if (arith_signed_imm >= 0)
                 ARITH_REG <<= arith_signed_imm;
             else
                 ARITH_REG >>= -arith_signed_imm;
@@ -1375,9 +1387,6 @@ static int do_apf_run(apf_context *ctx) {
                 break;
               case TRANSMIT_EXT_OPCODE:
               do_transmit: {
-                // tx_buf_len cannot be large because we'd run out of RAM,
-                // so the above unsigned comparison effectively guarantees casting pkt_len
-                // to a signed value does not result in it going negative.
                 u8 ip_ofs;
                 u8 csum_ofs;
                 u8 csum_start = 0;
@@ -1395,7 +1404,7 @@ static int do_apf_run(apf_context *ctx) {
                 } else if (imm_len) {
                     // parse ALLOC_XMIT_OPCODE (R=0) immediate
                     static const u8 auto_csum_start[8] = { 26, 26, 34, 38, 22, 22, 22, 22 };
-                    static const u8 auto_csum_ofs[8] =   { 40, 44, 36, 40, 60, 64, 56, 64 };
+                    static const u8 auto_csum_ofs[8] =   { 40, 50, 36, 40, 60, 70, 56, 64 };
                     ip_ofs = 14;
                     csum_ofs = auto_csum_ofs[imm & 7];
                     csum_start = auto_csum_start[imm & 7];
@@ -1406,12 +1415,15 @@ static int do_apf_run(apf_context *ctx) {
                     ip_ofs = csum_ofs = 255;
                 }
                 ASSERT_RETURN(ctx->tx_buf);
-                // If pkt_len > allocate_buffer_len, it means sth. wrong
+                // If pkt_len > ctx->tx_buf_len, it means sth. wrong
                 // happened and the tx_buf should be deallocated.
                 if (pkt_len > ctx->tx_buf_len) {
                     do_discard_buffer(ctx);
                     return EXCEPTION;
                 }
+                // tx_buf_len cannot be large because we'd run out of RAM,
+                // so the above unsigned comparison effectively guarantees casting pkt_len
+                // to a signed value does not result in it going negative.
                 {
                     int dscp = csum_and_return_dscp(ctx->tx_buf, (s32)pkt_len, ip_ofs,
                                                     partial_csum, csum_start, csum_ofs, udp);
@@ -1434,13 +1446,11 @@ static int do_apf_run(apf_context *ctx) {
                 ASSERT_RETURN(ctx->tx_buf);
                 ASSERT_IN_OUTPUT_BOUNDS(dst_offs, copy_len);
                 if (reg_num == 0) {  // copy from packet
-                    const u32 last_packet_offs = pktcopy_src_offset + copy_len - 1;
-                    ASSERT_IN_PACKET_BOUNDS(pktcopy_src_offset);
-                    ASSERT_RETURN(last_packet_offs >= pktcopy_src_offset);
-                    ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
+                    ASSERT_RETURN(pktcopy_src_offset + copy_len <= ctx->packet_len &&
+                                  pktcopy_src_offset + copy_len >= pktcopy_src_offset);
                     memcpy(ctx->tx_buf + dst_offs, ctx->packet + pktcopy_src_offset, copy_len);
                 } else {  // copy from data
-                    ASSERT_IN_RAM_BOUNDS(pktcopy_src_offset + copy_len - 1);
+                    ASSERT_IN_DATA_BOUNDS(pktcopy_src_offset, copy_len);
                     memcpy(ctx->tx_buf + dst_offs, ctx->program + pktcopy_src_offset, copy_len);
                 }
                 dst_offs += copy_len;
@@ -1476,6 +1486,7 @@ static int do_apf_run(apf_context *ctx) {
                 if (imm & 4) qtype2 = qtype1 = (qtype1 << 8) | qtype2;
                 {
                     u32 udp_payload_offset = ctx->R[0];
+                    ASSERT_IN_PACKET_BOUNDS(udp_payload_offset);
                     match_result_type match_rst = match_names(ctx->program + ctx->pc,
                                                               ctx->program + ctx->program_len,
                                                               ctx->packet + udp_payload_offset,
@@ -1492,6 +1503,7 @@ static int do_apf_run(apf_context *ctx) {
                         ctx->pc++;
                     }
                     ctx->pc += 2;  // skip the final double 0 needle end
+                    if (ctx->pc > ctx->program_len) return EXCEPTION;
                     // relies on reg_num in {0,1} and match_rst being {false=0, true=1}
                     if (!(reg_num ^ (u32)match_rst)) ctx->pc += jump_offs;
                 }
@@ -1590,6 +1602,7 @@ static int do_apf_run(apf_context *ctx) {
     return EXCEPTION;
 }
 
+
 int apf_run_packet(struct apf_state *state, const u8 *const packet, const u32 packet_len) {
     if (!state) return EXCEPTION;
 
@@ -1648,6 +1661,12 @@ int apf_run_packet(struct apf_state *state, const u8 *const packet, const u32 pa
 }
 FOR_KERNEL(apf_run_packet)
 
+int apf_run_full_data_packet(struct apf_state *state, const u8 *const packet,
+                             const u32 packet_len) {
+    return apf_run_packet(state, packet, packet_len);
+}
+FOR_KERNEL(apf_run_full_data_packet)
+
 int apf_run_mgmt(struct apf_state *state, const u8 *const frame, const u32 frame_len,
                  const u32 freq_mhz, const s8 rssi_dbm) {
     // TODO: implement
@@ -1667,4 +1686,3 @@ int apf_run_dw(struct apf_state *state, const u32 freq_mhz) {
     return 0;
 }
 FOR_KERNEL(apf_run_dw)
-
