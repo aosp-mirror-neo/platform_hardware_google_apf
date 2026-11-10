@@ -1185,21 +1185,29 @@ int apf_gen_add_transmit_l4(struct apf_generator *gen, uint8_t ip_ofs,
      * for Ethernet (ip_ofs == 14) L4 checksummed transmissions, encoding
      * imm = (partial_csum << 3) | template_idx. Only template indices 0
      * (IPv4/UDP) and 4 (IPv6/UDP) apply UDP checksum semantics (0x0000 -> 0xFFFF).
+     *
+     * Note: APFv6.1 used buggy TCP csum_ofs (44/64) for types 1/5, fixed to 50/70
+     * in APFvNEXT. Never emit types 1/5 on APFv6.1 so generated programs also run
+     * cleanly on APFv8+ interpreters.
      */
-    static const uint8_t k_auto_csum_start[8] = {26, 26, 34, 38, 22, 22, 22, 22};
-    static const uint8_t k_auto_csum_ofs[8] = {40, 44, 36, 40, 60, 64, 56, 64};
-
     if (!apf_gen_check_mutable(gen)) return -1;
     if (ip_ofs == 255 || csum_ofs == 255) return apf_gen_fail(gen);
 
     if (ip_ofs == 14) {
-        for (uint32_t v = 0; v < 8; v++) {
-            bool tmpl_udp = !(v & 3);
-            if (k_auto_csum_ofs[v] == csum_ofs && k_auto_csum_start[v] == csum_start &&
-                tmpl_udp == is_udp) {
-                uint32_t imm = ((uint32_t)partial_csum << 3) | v;
-                return apf_gen_add_imm_insn(gen, ALLOC_XMIT_OPCODE, APF_REG_R0, imm);
-            }
+        int v = -1;
+        if ( is_udp && csum_start == 26 && csum_ofs == 40) v = 0;        /* ether/ipv4/udp */
+        if (gen->version > APF_VERSION_61
+                && !is_udp && csum_start == 26 && csum_ofs == 50) v = 1; /* ether/ipv4/tcp */
+        if (!is_udp && csum_start == 34 && csum_ofs == 36) v = 2;        /* ether/ipv4/icmp */
+        if (!is_udp && csum_start == 38 && csum_ofs == 40) v = 3;        /* ether/ipv4/routeralert/icmp */
+        if ( is_udp && csum_start == 22 && csum_ofs == 60) v = 4;        /* ether/ipv6/udp */
+        if (gen->version > APF_VERSION_61
+                && !is_udp && csum_start == 22 && csum_ofs == 70) v = 5; /* ether/ipv6/tcp */
+        if (!is_udp && csum_start == 22 && csum_ofs == 56) v = 6;        /* ether/ipv6/icmp */
+        if (!is_udp && csum_start == 22 && csum_ofs == 64) v = 7;        /* ether/ipv6/routeralert/icmp */
+        if (v >= 0) {
+            uint32_t imm = ((uint32_t)partial_csum << 3) | (uint32_t)v;
+            return apf_gen_add_imm_insn(gen, ALLOC_XMIT_OPCODE, APF_REG_R0, imm);
         }
     }
 

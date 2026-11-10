@@ -636,6 +636,47 @@ TEST(ApfGeneratorTest, testPacketTransmitAndRegisterInstructions) {
                   }));
     }
 
+    // 2b. Test TCP checksum offload on APFv6.1 vs APFvNEXT:
+    //     - APFv6.1 never emits ALLOC_XMIT types 1 or 5 (both fall back to extended TRANSMIT).
+    //     - APFvNEXT (> APF_VERSION_61) emits ALLOC_XMIT types 1 and 5 for offsets 50 and 70.
+    {
+        // APFv6.1: TCP (csum_ofs 44/50 for IPv4, 64/70 for IPv6) falls back to extended TRANSMIT
+        auto gen61 = AllocGen();
+        ASSERT_NE(gen61, nullptr);
+        apf_gen_add_transmit_l4(gen61.get(), 14, 50, 26, 0x11, false);
+        apf_gen_add_transmit_l4(gen61.get(), 14, 44, 26, 0x11, false);
+        // csum_ofs=64 with csum_start=22 matches type 7 (ether/ipv6/routeralert/icmp)
+        apf_gen_add_transmit_l4(gen61.get(), 14, 64, 22, 0, false);
+        size_t len61 = 0;
+        auto buf61 = GenerateProgram(gen61.get(), &len61);
+        ASSERT_NE(buf61, nullptr);
+        EXPECT_EQ(DisassembleProgram(buf61.get(), len61),
+                  (std::vector<std::string>{
+                      "0: data        0,",
+                      "3: debugbuf    size=4049",
+                      "7: transmit    ip_ofs=14, csum_ofs=50, csum_start=26, partial_csum=0x0011",
+                      "14: transmit    ip_ofs=14, csum_ofs=44, csum_start=26, partial_csum=0x0011",
+                      "21: transmit    offload=ipv6/alert/icmp, partial_csum=0x0",
+                  }));
+
+        // APFvNEXT: TCP (csum_ofs 50/70) emits compact ALLOC_XMIT types 1 and 5
+        auto gen_next = std::unique_ptr<apf_generator, void (*)(apf_generator*)>(
+            apf_generator_alloc(APF_VERSION_61 + 1, 4096), apf_generator_free);
+        ASSERT_NE(gen_next, nullptr);
+        apf_gen_add_transmit_l4(gen_next.get(), 14, 50, 26, 0x11, false);
+        apf_gen_add_transmit_l4(gen_next.get(), 14, 70, 22, 0x11, false);
+        size_t len_next = 0;
+        auto buf_next = GenerateProgram(gen_next.get(), &len_next);
+        ASSERT_NE(buf_next, nullptr);
+        EXPECT_EQ(DisassembleProgram(buf_next.get(), len_next),
+                  (std::vector<std::string>{
+                      "0: data        0,",
+                      "3: debugbuf    size=4061",
+                      "7: transmit    offload=ipv4/tcp, partial_csum=0x11",
+                      "9: transmit    offload=ipv6/tcp, partial_csum=0x11",
+                  }));
+    }
+
     // 3. Test WRITE, EWRITE, PKTCOPY/DATACOPY, EPKTCOPY/EDATACOPY (including boundary lengths
     //    255, 256, and 511), and _R1 variants
     {

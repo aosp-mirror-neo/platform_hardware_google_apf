@@ -32,7 +32,7 @@
 #define MEMORY_OFFSET_TX_BUF_OFFSET       10  /* Offset in tx_buf for next write */
 #define MEMORY_OFFSET_PROGRAM_SIZE        11  /* Size of program (in bytes) */
 #define MEMORY_OFFSET_DATA_SIZE           12  /* Total size of program + data (ram_len) */
-#define MEMORY_OFFSET_IPV4_HEADER_SIZE    13  /* 4*([APF_FRAME_HEADER_SIZE]&15) */
+#define MEMORY_OFFSET_IPV4_HEADER_SIZE    13  /* 4*([ETH_HLEN]&15) */
 #define MEMORY_OFFSET_PACKET_SIZE         14  /* Size of packet in bytes */
 #define MEMORY_OFFSET_FILTER_AGE          15  /* Age since filter installed in seconds */
 
@@ -52,9 +52,9 @@
 #define LDB_OPCODE 1    /* Load 1 byte  from immediate offset, e.g. "ldb R0, [5]" */
 #define LDH_OPCODE 2    /* Load 2 bytes from immediate offset, e.g. "ldh R0, [5]" */
 #define LDW_OPCODE 3    /* Load 4 bytes from immediate offset, e.g. "ldw R0, [5]" */
-#define LDBX_OPCODE 4   /* Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R0]" */
-#define LDHX_OPCODE 5   /* Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R0]" */
-#define LDWX_OPCODE 6   /* Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R0]" */
+#define LDBX_OPCODE 4   /* Load 1 byte  from immediate offset plus register, e.g. "ldbx R0, [5+R1]" */
+#define LDHX_OPCODE 5   /* Load 2 bytes from immediate offset plus register, e.g. "ldhx R0, [5+R1]" */
+#define LDWX_OPCODE 6   /* Load 4 bytes from immediate offset plus register, e.g. "ldwx R0, [5+R1]" */
 #define ADD_OPCODE 7    /* Add, e.g. "add R0,5" */
 #define MUL_OPCODE 8    /* Multiply, e.g. "mul R0,5" */
 #define DIV_OPCODE 9    /* Divide, e.g. "div R0,5" */
@@ -101,8 +101,8 @@
  * imm1 is jmp target
  * imm2(u8) is offset [0..255] into packet
  * imm3(u8) is (count - 1) * 16 + (compare_len - 1), thus both count & compare_len are in [1..16]
- * which is followed by compare_len u8 'even offset' ptrs into max 526 byte data section to compare
- * against - ie. they are multipied by 2 and have 3 added to them (to skip over 'datajmp u16')
+ * which is followed by count u8 'even offset' ptrs into max 526 byte data section to compare
+ * against - ie. they are multiplied by 2 and have 3 added to them (to skip over 'datajmp u16')
  * Warning: do not specify the same byte sequence multiple times.
  */
 #define JBSPTRMATCH_OPCODE 27
@@ -121,6 +121,7 @@
  *         5   | ip6/tcp              |   14   |     | 14+40-32=22 | 14+40  +10=64 |     --"--    |
  *         6   | ip6/icmp             |   14   |     | 14+40-32=22 | 14+40   +2=56 |     --"--    |
  *         7   | ip6/routeralert/icmp |   14   |     | 14+40-32=22 | 14+40+8 +2=64 |     --"--    |
+ *   Note: +10=44/64 for types 1/5 is an APFv6.1 bug (TCP csum is +16=50/70), fixed in APFvNEXT.
  */
 #define ALLOC_XMIT_OPCODE 28
 
@@ -151,7 +152,7 @@
  * u8 imm3 - offset from start of buffer to store L4 checksum (255 for no L4 checksum)
  * u8 imm4 - offset from start of buffer to begin L4 checksum calculation (present iff imm3 != 255)
  * u16 imm5 - partial checksum value to include in L4 checksum (present iff imm3 != 255)
- * "e.g. transmit"
+ * e.g. "transmit"
  */
 #define TRANSMIT_EXT_OPCODE 37
 
@@ -201,7 +202,7 @@
  * imm1: Extended opcode
  * imm2: Jump label offset
  * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs
- * e.g.: "jdnsaeq R0,label,0xc,\002aa\005local\0\0", "jdnsane R0,label,0xc,\002aa\005local\0\0"
+ * e.g.: "jdnsaeq R0,label,\002aa\005local\0\0", "jdnsane R0,label,\002aa\005local\0\0"
  */
 #define JDNSAMATCH_EXT_OPCODE 44
 #define JDNSAMATCHSAFE_EXT_OPCODE 46
