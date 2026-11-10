@@ -894,6 +894,8 @@ int apf_read(const struct apf_state *state, u32 offset, u8 *buf, u32 length) {
 }
 FOR_KERNEL(apf_read)
 
+static void apf_recalculate_global_timer(void);
+
 // TODO - think about what this should return
 int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
     if (!state) return -1;
@@ -902,9 +904,13 @@ int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
     if (offset == -1) {
         if (length > state->ram_size) return -1;
         state->program_len = 0;  // TODO maybe only ifdef APF_LOCK
+        // Note: memory past length (counters and data region) is intentionally
+        // preserved across program reinstallation and not zeroed out.
+        state->timer_set = false;
         memcpy(state->ram, buf, length);
         state->program_install_time = apf_get_time_in_ticks();
         state->program_len = length;
+        apf_recalculate_global_timer();
         return 0;
     }
     if ((u32)offset + length < (u32)offset) return -1;
