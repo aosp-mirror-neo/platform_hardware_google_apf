@@ -218,6 +218,13 @@ struct apf_state *apf_enable(struct apf_fw_ctx *ctx, u32 ram_size) {
     apf_global_unlock();
 
     struct apf_state *state = apf_allocate_state(ctx, total_size);
+
+    // Reject incorrectly aligned pointer
+    if (3 & (uintptr_t)state) {
+        apf_free_state(ctx, state, total_size);
+        state = NULL;
+    }
+
     if (!state) {
         apf_global_lock();
         apf_used_ram -= total_size;
