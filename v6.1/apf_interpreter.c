@@ -129,10 +129,10 @@ typedef enum {
  *            to the arithmetic operation.
  *            If the "register" field is 1 then R1's value is used as the other
  *            argument to the arithmetic operation.
- *    In APFv6+, if the "length" field is 0 then R0 is updated using R1's value
- *    as the other argument; otherwise the "register" field selects the
- *    destination register (R0 or R1) and the immediate value is used as the
- *    other argument.
+ *    In APFv6+, the "register" field selects the destination register (R0 or
+ *    R1); if the "length" field is 0 then the other register is used as the
+ *    other argument, otherwise the immediate value is used as the other
+ *    argument.
  *  Conditional jump instructions
  *    These instructions compare register R0's value with another value, and if
  *    the comparison succeeds, jump (i.e. adjust the program counter). The
