@@ -29,7 +29,8 @@ extern "C" {
 
 /**
  * Returns the max version of the APF instruction set supported by apf_run().
- * APFv6 is a superset of APFv4. APFv6 interpreters are able to run APFv4 code.
+ * APFv6.1 is a superset of APFv4 and APFv6. APFv6.1 interpreters are able to
+ * run APFv4 and APFv6 code.
  */
 uint32_t apf_version(void);
 
