@@ -353,7 +353,7 @@ int apf_transmit_rx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, u
  * This structure is returned via apf_get_info()
  */
 struct apf_info {
-    uint32_t apf_version;  // for example 6100 means APFv6.1
+    uint32_t apf_version;  // for example 6100 means APFv6.1, or 20261110 (YYYYMMDD) for APFvNEXT
     uint32_t apf_id;       // defaults to 0 at bootup
     uint32_t total_ram;    // in bytes
     uint32_t used_ram;     // in bytes

@@ -734,7 +734,7 @@ static int csum_and_return_dscp(u8* const pkt,
 }
 // End include of apf_checksum.h
 
-#define APF_VERSION 20260420
+#define APF_VERSION 20261110
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK

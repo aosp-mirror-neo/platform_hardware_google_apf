@@ -103,7 +103,7 @@ APF_STATIC_ASSERT(!(APF_MEMORY_ALLOCATION_GRANULARITY % offsetof(struct apf_ptr_
 #include "apf_dns.h"
 #include "apf_checksum.h"
 
-#define APF_VERSION 20260420
+#define APF_VERSION 20261110
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK
