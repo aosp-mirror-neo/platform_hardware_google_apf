@@ -756,8 +756,8 @@ static int do_apf_run(apf_context *ctx) {
                 } else {
                     ctx->tx_buf_len = decode_be16(ctx); // 2nd imm, at worst 6 B past prog_len
                 }
-                // checksumming functions require minimum 266 byte buffer for correctness
-                if (ctx->tx_buf_len < 266) ctx->tx_buf_len = 266;
+                // checksumming functions require minimum 274 byte buffer for correctness
+                if (ctx->tx_buf_len < 274) ctx->tx_buf_len = 274;
                 ctx->tx_buf = apf_allocate_tx_buffer(ctx->caller_ctx, ctx->tx_buf_len);
                 if (!ctx->tx_buf) {  // allocate failure
                     ctx->tx_buf_len = 0;

@@ -21,12 +21,13 @@ static inline u16 fix_udp_csum(u16 csum) {
  *
  * @param pkt - pointer to the very start of the to-be-transmitted packet,
  *              ie. the start of the ethernet header (if one is present)
- *     WARNING: at minimum 266 bytes of buffer pointed to by 'pkt' pointer
+ *     WARNING: at minimum 274 bytes of buffer pointed to by 'pkt' pointer
  *              *MUST* be writable.
  * (IPv4 header checksum is a 2 byte value, 10 bytes after ip_ofs,
- * which has a maximum value of 254.  Thus 254[ip_ofs] + 10 + 2[u16] = 266)
+ * which has a maximum value of 254, but calculating it reads the full
+ * 20-byte IPv4 header.  Thus 254[ip_ofs] + 20[IPV4_HLEN] = 274)
  *
- * @param len - length of the packet (this may be < 266).
+ * @param len - length of the packet (this may be < 274).
  * @param ip_ofs - offset from beginning of pkt to IPv4 or IPv6 header:
  *                 IP version detected based on top nibble of this byte,
  *                 for IPv4 we will calculate and store IP header checksum,
