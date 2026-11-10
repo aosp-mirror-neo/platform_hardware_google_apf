@@ -487,10 +487,12 @@ typedef union {
  * R bit - specifies the register (R0/R1) to test
  * imm1: Extended opcode
  * imm2: Jump label offset
- * imm3(u8): top 5 bits - number 'n' of following u8/be16/be32 values - 2
+ * imm3(u8): top 5 bits - number 'n' of following u8/be16/be24/be32 values - 2
  *        middle 2 bits - 1..4 length of immediates - 1
  *        bottom 1 bit  - =0 jmp if in set, =1 if not in set
- * imm4(n * 1/2/3/4 bytes): the *UNIQUE* values to compare against
+ * imm4(n * 1/2/3/4 bytes): the *UNIQUE* values to compare against (must be
+ *        strictly non-duplicate, as the interpreter toggles match state on
+ *        each match without early exit).
  */
 #define JONEOF_EXT_OPCODE 47
 
@@ -672,6 +674,9 @@ static match_result_type match_names(const u8* needles,
 /**
  * Calculate big endian 16-bit sum of a buffer (max 128kB),
  * then fold and negate it, producing a 16-bit result in [0..FFFE].
+ * Note: 'sum' on input should not be 0; in 1's complement arithmetic,
+ * 0xFFFF should be used instead to avoid returning 0xFFFF on an empty
+ * or all-zero buffer.
  */
 static u16 calc_csum(u32 sum, const u8* const buf, const s32 len) {
     u16 csum;
@@ -699,6 +704,8 @@ static inline u16 fix_udp_csum(u16 csum) {
  * 20-byte IPv4 header.  Thus 254[ip_ofs] + 20[IPV4_HLEN] = 274)
  *
  * @param len - length of the packet (this may be < 274).
+ *              For valid packets, len is assumed to be >= ip_ofs + IPV4_HLEN
+ *              when ip_ofs != 255.
  * @param ip_ofs - offset from beginning of pkt to IPv4 or IPv6 header:
  *                 IP version detected based on top nibble of this byte,
  *                 for IPv4 we will calculate and store IP header checksum,
@@ -1309,7 +1316,8 @@ static int do_apf_run(apf_context *ctx) {
             // pc < program_len < ram_len < 2GiB, thus pc + bytes cannot wrap
             if (!IN_RAM_BOUNDS(ctx->pc + bytes - 1)) return EXCEPTION;
             ASSERT_IN_PACKET_BOUNDS(ctx->R[0]);
-            // Note: this will return EXCEPTION (due to wrap) if imm_len (ie. len) is 0
+            // Note: this will return EXCEPTION (due to wrap) if compare length (len) is 0
+            // (e.g. when imm_len is 0)
             ASSERT_RETURN(last_packet_offs >= ctx->R[0]);
             ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
             // cnt underflow on final iteration not an issue as not used after loop.
@@ -1333,9 +1341,10 @@ static int do_apf_run(apf_context *ctx) {
             ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
             // cnt underflow on final iteration not an issue as not used after loop.
             // 4th (through max 19th) u8 immediates, this reaches at most 22 bytes past prog_len
-            // This assumes min ram size of 529 bytes, where APFv6.1 has min ram size of 3000
-            // the +3 is to skip over the APFv6 'datajmp' instruction, while 2* to have access to 526 bytes,
-            // Primary purpose is for mac (6) & ipv6 (16) addresses, so even offsets should be easy...
+            // This assumes min ram size of 529 bytes, where APFv6.1 has min ram size of 3000.
+            // In the data section, the +3 skips over the APFv6 'datajmp' instruction, while
+            // the 2* multiplier indexes 16-bit aligned offsets into the first 526 bytes of the
+            // data section (primarily used for 6-byte MAC and 16-byte IPv6 addresses).
             while (cnt--) matched |= !memcmp(ctx->program + 3 + 2 * DECODE_U8(), ctx->packet + ofs, len);
             if (matched ^ !reg_num) ctx->pc += imm;
             break;
@@ -1551,6 +1560,8 @@ static int do_apf_run(apf_context *ctx) {
                 u8 cnt = (imm3 >> 3) + 2;  // number [2..33] of elements in set
                 if (ctx->pc + cnt * len > ctx->program_len) return EXCEPTION;
                 // cnt underflow on final iteration not an issue as not used after loop.
+                // Note: elements in imm4 must be strictly unique because matching toggles
+                // jmp ^= true without early break to ensure pc advances past all immediates.
                 while (cnt--) {
                     u32 v = 0;
                     for (int i = 0; i < len; ++i) v = (v << 8) | DECODE_U8();

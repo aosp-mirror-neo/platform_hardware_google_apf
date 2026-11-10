@@ -1,6 +1,9 @@
 /**
  * Calculate big endian 16-bit sum of a buffer (max 128kB),
  * then fold and negate it, producing a 16-bit result in [0..FFFE].
+ * Note: 'sum' on input should not be 0; in 1's complement arithmetic,
+ * 0xFFFF should be used instead to avoid returning 0xFFFF on an empty
+ * or all-zero buffer.
  */
 static u16 calc_csum(u32 sum, const u8* const buf, const s32 len) {
     u16 csum;
@@ -28,6 +31,8 @@ static inline u16 fix_udp_csum(u16 csum) {
  * 20-byte IPv4 header.  Thus 254[ip_ofs] + 20[IPV4_HLEN] = 274)
  *
  * @param len - length of the packet (this may be < 274).
+ *              For valid packets, len is assumed to be >= ip_ofs + IPV4_HLEN
+ *              when ip_ofs != 255.
  * @param ip_ofs - offset from beginning of pkt to IPv4 or IPv6 header:
  *                 IP version detected based on top nibble of this byte,
  *                 for IPv4 we will calculate and store IP header checksum,

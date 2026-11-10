@@ -360,10 +360,12 @@ typedef union {
  * R bit - specifies the register (R0/R1) to test
  * imm1: Extended opcode
  * imm2: Jump label offset
- * imm3(u8): top 5 bits - number 'n' of following u8/be16/be32 values - 2
+ * imm3(u8): top 5 bits - number 'n' of following u8/be16/be24/be32 values - 2
  *        middle 2 bits - 1..4 length of immediates - 1
  *        bottom 1 bit  - =0 jmp if in set, =1 if not in set
- * imm4(n * 1/2/3/4 bytes): the *UNIQUE* values to compare against
+ * imm4(n * 1/2/3/4 bytes): the *UNIQUE* values to compare against (must be
+ *        strictly non-duplicate, as the interpreter toggles match state on
+ *        each match without early exit).
  */
 #define JONEOF_EXT_OPCODE 47
 

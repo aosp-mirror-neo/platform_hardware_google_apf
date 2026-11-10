@@ -669,7 +669,8 @@ static int do_apf_run(apf_context *ctx) {
             // pc < program_len < ram_len < 2GiB, thus pc + bytes cannot wrap
             if (!IN_RAM_BOUNDS(ctx->pc + bytes - 1)) return EXCEPTION;
             ASSERT_IN_PACKET_BOUNDS(ctx->R[0]);
-            // Note: this will return EXCEPTION (due to wrap) if imm_len (ie. len) is 0
+            // Note: this will return EXCEPTION (due to wrap) if compare length (len) is 0
+            // (e.g. when imm_len is 0)
             ASSERT_RETURN(last_packet_offs >= ctx->R[0]);
             ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
             // cnt underflow on final iteration not an issue as not used after loop.
@@ -693,9 +694,10 @@ static int do_apf_run(apf_context *ctx) {
             ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
             // cnt underflow on final iteration not an issue as not used after loop.
             // 4th (through max 19th) u8 immediates, this reaches at most 22 bytes past prog_len
-            // This assumes min ram size of 529 bytes, where APFv6.1 has min ram size of 3000
-            // the +3 is to skip over the APFv6 'datajmp' instruction, while 2* to have access to 526 bytes,
-            // Primary purpose is for mac (6) & ipv6 (16) addresses, so even offsets should be easy...
+            // This assumes min ram size of 529 bytes, where APFv6.1 has min ram size of 3000.
+            // In the data section, the +3 skips over the APFv6 'datajmp' instruction, while
+            // the 2* multiplier indexes 16-bit aligned offsets into the first 526 bytes of the
+            // data section (primarily used for 6-byte MAC and 16-byte IPv6 addresses).
             while (cnt--) matched |= !memcmp(ctx->program + 3 + 2 * DECODE_U8(), ctx->packet + ofs, len);
             if (matched ^ !reg_num) ctx->pc += imm;
             break;
@@ -911,6 +913,8 @@ static int do_apf_run(apf_context *ctx) {
                 u8 cnt = (imm3 >> 3) + 2;  // number [2..33] of elements in set
                 if (ctx->pc + cnt * len > ctx->program_len) return EXCEPTION;
                 // cnt underflow on final iteration not an issue as not used after loop.
+                // Note: elements in imm4 must be strictly unique because matching toggles
+                // jmp ^= true without early break to ensure pc advances past all immediates.
                 while (cnt--) {
                     u32 v = 0;
                     for (int i = 0; i < len; ++i) v = (v << 8) | DECODE_U8();
