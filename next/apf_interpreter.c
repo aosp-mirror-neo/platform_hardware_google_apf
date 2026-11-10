@@ -441,8 +441,9 @@ typedef union {
  * imm2: Jump label offset
  * imm3(u8): Question type (PTR/SRV/TXT/A/AAAA)
  *   note: imm3 is instead u16 in '1' version
- * imm4(bytes): null terminated list of null terminated LV-encoded QNAMEs
- * e.g.: "jdnsqeq R0,label,0xc,\002aa\005local\0\0", "jdnsqne R0,label,0xc,\002aa\005local\0\0"
+ * imm4(bytes): null terminated list of null terminated LV-encoded QNAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsqeq R0,label,0xc,\002AA\005LOCAL\0\0", "jdnsqne R0,label,0xc,\002AA\005LOCAL\0\0"
  */
 #define JDNSQMATCH_EXT_OPCODE 43
 #define JDNSQMATCHSAFE_EXT_OPCODE 45
@@ -457,8 +458,9 @@ typedef union {
  * R0: Offset to UDP payload content
  * imm1: Extended opcode
  * imm2: Jump label offset
- * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs
- * e.g.: "jdnsaeq R0,label,\002aa\005local\0\0", "jdnsane R0,label,\002aa\005local\0\0"
+ * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsaeq R0,label,\002AA\005LOCAL\0\0", "jdnsane R0,label,\002AA\005LOCAL\0\0"
  */
 #define JDNSAMATCH_EXT_OPCODE 44
 #define JDNSAMATCHSAFE_EXT_OPCODE 46
@@ -473,9 +475,10 @@ typedef union {
  * imm2: Jump label offset
  * imm3(u8): Question type1 (PTR/SRV/TXT/A/AAAA)
  * imm4(u8): Question type2 (PTR/SRV/TXT/A/AAAA)
- * imm5(bytes): null terminated list of null terminated LV-encoded QNAMEs
- * e.g.: "jdnsqeq2 R0,label,A,AAAA,\002aa\005local\0\0",
- *       "jdnsqne2 R0,label,A,AAAA,\002aa\005local\0\0"
+ * imm5(bytes): null terminated list of null terminated LV-encoded QNAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsqeq2 R0,label,A,AAAA,\002AA\005LOCAL\0\0",
+ *       "jdnsqne2 R0,label,A,AAAA,\002AA\005LOCAL\0\0"
  */
 #define JDNSQMATCH2_EXT_OPCODE 51
 #define JDNSQMATCHSAFE2_EXT_OPCODE 53
@@ -527,7 +530,9 @@ static u8 uppercase(u8 c) {
  * Compares a (Q)NAME starting at udp[*ofs] with the target name.
  *
  * @param needle - non-NULL - pointer to DNS encoded target name to match against.
- *   example: [11]_googlecast[4]_tcp[5]local[0]  (where [11] is a byte with value 11)
+ *   NOTE: target labels MUST be uppercase ASCII (packet bytes are converted to uppercase).
+ *   example: [11]_GOOGLECAST[4]_TCP[5]LOCAL[0]  (where [11] is a byte with value 11)
+ *   A label length of 0xFF serves as a single-label wildcard matching any label (e.g. [0xFF]).
  * @param needle_bound - non-NULL - points at first invalid byte past needle.
  * @param udp - non-NULL - pointer to the start of the UDP payload (DNS header).
  * @param udp_len - length of the UDP payload.
@@ -596,13 +601,16 @@ static match_result_type match_single_name(const u8* needle,
  * question_types.
  *
  * @param needles - non-NULL - pointer to DNS encoded target nameS to match against.
- *   example: [3]foo[3]com[0][3]bar[3]net[0][0]  -- note ends with an extra NULL byte.
+ *   NOTE: target labels MUST be uppercase ASCII (packet bytes are converted to uppercase).
+ *   example: [3]FOO[3]COM[0][3]BAR[3]NET[0][0]  -- note ends with an extra NULL byte.
+ *   A label length of 0xFF serves as a single-label wildcard matching any label (e.g. [0xFF]).
  * @param needle_bound - non-NULL - points at first invalid byte past needles.
  * @param udp - non-NULL - pointer to the start of the UDP payload (DNS header).
  * @param udp_len - length of the UDP payload.
- * @param question_type1 - question type to match against or -1 to match answers.
- *                         If question_type1 is -1, we won't check question_type2.
- * @param question_type2 - question type to match against or -1 to match answers.
+ * @param question_type1 - question type to match against or -1 to match all resource records
+ *                         (answers, authority, additional). If question_type1 is -1,
+ *                         we won't check question_type2.
+ * @param question_type2 - question type to match against or -1 to match all resource records.
  *
  * @return 1 if matched, 0 if not matched, -1 if error in packet, -2 if error in program.
  */

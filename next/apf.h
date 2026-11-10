@@ -314,8 +314,9 @@ typedef union {
  * imm2: Jump label offset
  * imm3(u8): Question type (PTR/SRV/TXT/A/AAAA)
  *   note: imm3 is instead u16 in '1' version
- * imm4(bytes): null terminated list of null terminated LV-encoded QNAMEs
- * e.g.: "jdnsqeq R0,label,0xc,\002aa\005local\0\0", "jdnsqne R0,label,0xc,\002aa\005local\0\0"
+ * imm4(bytes): null terminated list of null terminated LV-encoded QNAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsqeq R0,label,0xc,\002AA\005LOCAL\0\0", "jdnsqne R0,label,0xc,\002AA\005LOCAL\0\0"
  */
 #define JDNSQMATCH_EXT_OPCODE 43
 #define JDNSQMATCHSAFE_EXT_OPCODE 45
@@ -330,8 +331,9 @@ typedef union {
  * R0: Offset to UDP payload content
  * imm1: Extended opcode
  * imm2: Jump label offset
- * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs
- * e.g.: "jdnsaeq R0,label,\002aa\005local\0\0", "jdnsane R0,label,\002aa\005local\0\0"
+ * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsaeq R0,label,\002AA\005LOCAL\0\0", "jdnsane R0,label,\002AA\005LOCAL\0\0"
  */
 #define JDNSAMATCH_EXT_OPCODE 44
 #define JDNSAMATCHSAFE_EXT_OPCODE 46
@@ -346,9 +348,10 @@ typedef union {
  * imm2: Jump label offset
  * imm3(u8): Question type1 (PTR/SRV/TXT/A/AAAA)
  * imm4(u8): Question type2 (PTR/SRV/TXT/A/AAAA)
- * imm5(bytes): null terminated list of null terminated LV-encoded QNAMEs
- * e.g.: "jdnsqeq2 R0,label,A,AAAA,\002aa\005local\0\0",
- *       "jdnsqne2 R0,label,A,AAAA,\002aa\005local\0\0"
+ * imm5(bytes): null terminated list of null terminated LV-encoded QNAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsqeq2 R0,label,A,AAAA,\002AA\005LOCAL\0\0",
+ *       "jdnsqne2 R0,label,A,AAAA,\002AA\005LOCAL\0\0"
  */
 #define JDNSQMATCH2_EXT_OPCODE 51
 #define JDNSQMATCHSAFE2_EXT_OPCODE 53

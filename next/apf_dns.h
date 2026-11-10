@@ -2,7 +2,9 @@
  * Compares a (Q)NAME starting at udp[*ofs] with the target name.
  *
  * @param needle - non-NULL - pointer to DNS encoded target name to match against.
- *   example: [11]_googlecast[4]_tcp[5]local[0]  (where [11] is a byte with value 11)
+ *   NOTE: target labels MUST be uppercase ASCII (packet bytes are converted to uppercase).
+ *   example: [11]_GOOGLECAST[4]_TCP[5]LOCAL[0]  (where [11] is a byte with value 11)
+ *   A label length of 0xFF serves as a single-label wildcard matching any label (e.g. [0xFF]).
  * @param needle_bound - non-NULL - points at first invalid byte past needle.
  * @param udp - non-NULL - pointer to the start of the UDP payload (DNS header).
  * @param udp_len - length of the UDP payload.
@@ -71,13 +73,16 @@ static match_result_type match_single_name(const u8* needle,
  * question_types.
  *
  * @param needles - non-NULL - pointer to DNS encoded target nameS to match against.
- *   example: [3]foo[3]com[0][3]bar[3]net[0][0]  -- note ends with an extra NULL byte.
+ *   NOTE: target labels MUST be uppercase ASCII (packet bytes are converted to uppercase).
+ *   example: [3]FOO[3]COM[0][3]BAR[3]NET[0][0]  -- note ends with an extra NULL byte.
+ *   A label length of 0xFF serves as a single-label wildcard matching any label (e.g. [0xFF]).
  * @param needle_bound - non-NULL - points at first invalid byte past needles.
  * @param udp - non-NULL - pointer to the start of the UDP payload (DNS header).
  * @param udp_len - length of the UDP payload.
- * @param question_type1 - question type to match against or -1 to match answers.
- *                         If question_type1 is -1, we won't check question_type2.
- * @param question_type2 - question type to match against or -1 to match answers.
+ * @param question_type1 - question type to match against or -1 to match all resource records
+ *                         (answers, authority, additional). If question_type1 is -1,
+ *                         we won't check question_type2.
+ * @param question_type2 - question type to match against or -1 to match all resource records.
  *
  * @return 1 if matched, 0 if not matched, -1 if error in packet, -2 if error in program.
  */
