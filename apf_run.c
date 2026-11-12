@@ -453,11 +453,15 @@ int main(int argc, char* argv[]) {
         }
         ram_len += 3;
         ram_len &= ~3;
+        if (apf_version >= 6100 && ram_len < 1024) ram_len = 1024;
     }
 
     // program still points at program_len bytes of memory,
     // but needs to point at ram_len bytes (with any data appended).
     program = realloc(program, ram_len);
+    if (ram_len > program_len) {
+        memset(program + program_len, 0, ram_len - program_len);
+    }
     if (data) {
         memcpy(program + ram_len - data_len, data, data_len);
         free(data);
