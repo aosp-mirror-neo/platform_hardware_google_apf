@@ -334,7 +334,7 @@ int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, u
 /**
  * Transmits (to the CPU) the allocated buffer and deallocates it.
  *
- * Exactly like apf_transmit_rx_buffer() but for ingress direction.
+ * Exactly like apf_transmit_tx_buffer() but for ingress direction.
  *
  * May be delivered to the kernel driver via some out of band control path
  * mechanism, and injected as a received packet.
@@ -447,7 +447,7 @@ int apf_transmit_mgmt_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len,
  * This structure is returned via apf_get_info()
  */
 struct apf_info {
-    uint32_t apf_version;  // for example 6100 means APFv6.1
+    uint32_t apf_version;  // for example 6100 means APFv6.1, or 20261110 (YYYYMMDD) for APFvNEXT
     uint32_t apf_id;       // defaults to 0 at bootup
     uint32_t total_ram;    // in bytes
     uint32_t used_ram;     // in bytes

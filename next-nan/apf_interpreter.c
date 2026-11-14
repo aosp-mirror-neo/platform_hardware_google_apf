@@ -441,8 +441,9 @@ typedef union {
  * imm2: Jump label offset
  * imm3(u8): Question type (PTR/SRV/TXT/A/AAAA)
  *   note: imm3 is instead u16 in '1' version
- * imm4(bytes): null terminated list of null terminated LV-encoded QNAMEs
- * e.g.: "jdnsqeq R0,label,0xc,\002aa\005local\0\0", "jdnsqne R0,label,0xc,\002aa\005local\0\0"
+ * imm4(bytes): null terminated list of null terminated LV-encoded QNAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsqeq R0,label,0xc,\002AA\005LOCAL\0\0", "jdnsqne R0,label,0xc,\002AA\005LOCAL\0\0"
  */
 #define JDNSQMATCH_EXT_OPCODE 43
 #define JDNSQMATCHSAFE_EXT_OPCODE 45
@@ -457,8 +458,9 @@ typedef union {
  * R0: Offset to UDP payload content
  * imm1: Extended opcode
  * imm2: Jump label offset
- * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs
- * e.g.: "jdnsaeq R0,label,\002aa\005local\0\0", "jdnsane R0,label,\002aa\005local\0\0"
+ * imm3(bytes): null terminated list of null terminated LV-encoded NAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsaeq R0,label,\002AA\005LOCAL\0\0", "jdnsane R0,label,\002AA\005LOCAL\0\0"
  */
 #define JDNSAMATCH_EXT_OPCODE 44
 #define JDNSAMATCHSAFE_EXT_OPCODE 46
@@ -473,9 +475,10 @@ typedef union {
  * imm2: Jump label offset
  * imm3(u8): Question type1 (PTR/SRV/TXT/A/AAAA)
  * imm4(u8): Question type2 (PTR/SRV/TXT/A/AAAA)
- * imm5(bytes): null terminated list of null terminated LV-encoded QNAMEs
- * e.g.: "jdnsqeq2 R0,label,A,AAAA,\002aa\005local\0\0",
- *       "jdnsqne2 R0,label,A,AAAA,\002aa\005local\0\0"
+ * imm5(bytes): null terminated list of null terminated LV-encoded QNAMEs (uppercase ASCII,
+ *   0xFF serves as a single-label wildcard)
+ * e.g.: "jdnsqeq2 R0,label,A,AAAA,\002AA\005LOCAL\0\0",
+ *       "jdnsqne2 R0,label,A,AAAA,\002AA\005LOCAL\0\0"
  */
 #define JDNSQMATCH2_EXT_OPCODE 51
 #define JDNSQMATCHSAFE2_EXT_OPCODE 53
@@ -484,10 +487,12 @@ typedef union {
  * R bit - specifies the register (R0/R1) to test
  * imm1: Extended opcode
  * imm2: Jump label offset
- * imm3(u8): top 5 bits - number 'n' of following u8/be16/be32 values - 2
+ * imm3(u8): top 5 bits - number 'n' of following u8/be16/be24/be32 values - 2
  *        middle 2 bits - 1..4 length of immediates - 1
  *        bottom 1 bit  - =0 jmp if in set, =1 if not in set
- * imm4(n * 1/2/3/4 bytes): the *UNIQUE* values to compare against
+ * imm4(n * 1/2/3/4 bytes): the *UNIQUE* values to compare against (must be
+ *        strictly non-duplicate, as the interpreter toggles match state on
+ *        each match without early exit).
  */
 #define JONEOF_EXT_OPCODE 47
 
@@ -527,7 +532,9 @@ static u8 uppercase(u8 c) {
  * Compares a (Q)NAME starting at udp[*ofs] with the target name.
  *
  * @param needle - non-NULL - pointer to DNS encoded target name to match against.
- *   example: [11]_googlecast[4]_tcp[5]local[0]  (where [11] is a byte with value 11)
+ *   NOTE: target labels MUST be uppercase ASCII (packet bytes are converted to uppercase).
+ *   example: [11]_GOOGLECAST[4]_TCP[5]LOCAL[0]  (where [11] is a byte with value 11)
+ *   A label length of 0xFF serves as a single-label wildcard matching any label (e.g. [0xFF]).
  * @param needle_bound - non-NULL - points at first invalid byte past needle.
  * @param udp - non-NULL - pointer to the start of the UDP payload (DNS header).
  * @param udp_len - length of the UDP payload.
@@ -596,13 +603,16 @@ static match_result_type match_single_name(const u8* needle,
  * question_types.
  *
  * @param needles - non-NULL - pointer to DNS encoded target nameS to match against.
- *   example: [3]foo[3]com[0][3]bar[3]net[0][0]  -- note ends with an extra NULL byte.
+ *   NOTE: target labels MUST be uppercase ASCII (packet bytes are converted to uppercase).
+ *   example: [3]FOO[3]COM[0][3]BAR[3]NET[0][0]  -- note ends with an extra NULL byte.
+ *   A label length of 0xFF serves as a single-label wildcard matching any label (e.g. [0xFF]).
  * @param needle_bound - non-NULL - points at first invalid byte past needles.
  * @param udp - non-NULL - pointer to the start of the UDP payload (DNS header).
  * @param udp_len - length of the UDP payload.
- * @param question_type1 - question type to match against or -1 to match answers.
- *                         If question_type1 is -1, we won't check question_type2.
- * @param question_type2 - question type to match against or -1 to match answers.
+ * @param question_type1 - question type to match against or -1 to match all resource records
+ *                         (answers, authority, additional). If question_type1 is -1,
+ *                         we won't check question_type2.
+ * @param question_type2 - question type to match against or -1 to match all resource records.
  *
  * @return 1 if matched, 0 if not matched, -1 if error in packet, -2 if error in program.
  */
@@ -664,6 +674,9 @@ static match_result_type match_names(const u8* needles,
 /**
  * Calculate big endian 16-bit sum of a buffer (max 128kB),
  * then fold and negate it, producing a 16-bit result in [0..FFFE].
+ * Note: 'sum' on input should not be 0; in 1's complement arithmetic,
+ * 0xFFFF should be used instead to avoid returning 0xFFFF on an empty
+ * or all-zero buffer.
  */
 static u16 calc_csum(u32 sum, const u8* const buf, const s32 len) {
     u16 csum;
@@ -684,12 +697,15 @@ static inline u16 fix_udp_csum(u16 csum) {
  *
  * @param pkt - pointer to the very start of the to-be-transmitted packet,
  *              ie. the start of the ethernet header (if one is present)
- *     WARNING: at minimum 266 bytes of buffer pointed to by 'pkt' pointer
+ *     WARNING: at minimum 274 bytes of buffer pointed to by 'pkt' pointer
  *              *MUST* be writable.
  * (IPv4 header checksum is a 2 byte value, 10 bytes after ip_ofs,
- * which has a maximum value of 254.  Thus 254[ip_ofs] + 10 + 2[u16] = 266)
+ * which has a maximum value of 254, but calculating it reads the full
+ * 20-byte IPv4 header.  Thus 254[ip_ofs] + 20[IPV4_HLEN] = 274)
  *
- * @param len - length of the packet (this may be < 266).
+ * @param len - length of the packet (this may be < 274).
+ *              For valid packets, len is assumed to be >= ip_ofs + IPV4_HLEN
+ *              when ip_ofs != 255.
  * @param ip_ofs - offset from beginning of pkt to IPv4 or IPv6 header:
  *                 IP version detected based on top nibble of this byte,
  *                 for IPv4 we will calculate and store IP header checksum,
@@ -734,7 +750,7 @@ static int csum_and_return_dscp(u8* const pkt,
 }
 // End include of apf_checksum.h
 
-#define APF_VERSION 20260420
+#define APF_VERSION 20261110
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK
@@ -849,6 +865,13 @@ struct apf_state *apf_enable(struct apf_fw_ctx *ctx, u32 ram_size) {
     apf_global_unlock();
 
     struct apf_state *state = apf_allocate_state(ctx, total_size);
+
+    // Reject incorrectly aligned pointer
+    if (3 & (uintptr_t)state) {
+        apf_free_state(ctx, state, total_size);
+        state = NULL;
+    }
+
     if (!state) {
         apf_global_lock();
         apf_used_ram -= total_size;
@@ -894,6 +917,8 @@ int apf_read(const struct apf_state *state, u32 offset, u8 *buf, u32 length) {
 }
 FOR_KERNEL(apf_read)
 
+static void apf_recalculate_global_timer(void);
+
 // TODO - think about what this should return
 int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
     if (!state) return -1;
@@ -902,9 +927,13 @@ int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
     if (offset == -1) {
         if (length > state->ram_size) return -1;
         state->program_len = 0;  // TODO maybe only ifdef APF_LOCK
+        // Note: memory past length (counters and data region) is intentionally
+        // preserved across program reinstallation and not zeroed out.
+        state->timer_set = false;
         memcpy(state->ram, buf, length);
         state->program_install_time = apf_get_time_in_ticks();
         state->program_len = length;
+        apf_recalculate_global_timer();
         return 0;
     }
     if ((u32)offset + length < (u32)offset) return -1;
@@ -1287,7 +1316,8 @@ static int do_apf_run(apf_context *ctx) {
             // pc < program_len < ram_len < 2GiB, thus pc + bytes cannot wrap
             if (!IN_RAM_BOUNDS(ctx->pc + bytes - 1)) return EXCEPTION;
             ASSERT_IN_PACKET_BOUNDS(ctx->R[0]);
-            // Note: this will return EXCEPTION (due to wrap) if imm_len (ie. len) is 0
+            // Note: this will return EXCEPTION (due to wrap) if compare length (len) is 0
+            // (e.g. when imm_len is 0)
             ASSERT_RETURN(last_packet_offs >= ctx->R[0]);
             ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
             // cnt underflow on final iteration not an issue as not used after loop.
@@ -1311,9 +1341,10 @@ static int do_apf_run(apf_context *ctx) {
             ASSERT_IN_PACKET_BOUNDS(last_packet_offs);
             // cnt underflow on final iteration not an issue as not used after loop.
             // 4th (through max 19th) u8 immediates, this reaches at most 22 bytes past prog_len
-            // This assumes min ram size of 529 bytes, where APFv6.1 has min ram size of 3000
-            // the +3 is to skip over the APFv6 'datajmp' instruction, while 2* to have access to 526 bytes,
-            // Primary purpose is for mac (6) & ipv6 (16) addresses, so even offsets should be easy...
+            // This assumes min ram size of 529 bytes, where APFv6.1 has min ram size of 3000.
+            // In the data section, the +3 skips over the APFv6 'datajmp' instruction, while
+            // the 2* multiplier indexes 16-bit aligned offsets into the first 526 bytes of the
+            // data section (primarily used for 6-byte MAC and 16-byte IPv6 addresses).
             while (cnt--) matched |= !memcmp(ctx->program + 3 + 2 * DECODE_U8(), ctx->packet + ofs, len);
             if (matched ^ !reg_num) ctx->pc += imm;
             break;
@@ -1374,8 +1405,8 @@ static int do_apf_run(apf_context *ctx) {
                 } else {
                     ctx->tx_buf_len = decode_be16(ctx); // 2nd imm, at worst 6 B past prog_len
                 }
-                // checksumming functions require minimum 266 byte buffer for correctness
-                if (ctx->tx_buf_len < 266) ctx->tx_buf_len = 266;
+                // checksumming functions require minimum 274 byte buffer for correctness
+                if (ctx->tx_buf_len < 274) ctx->tx_buf_len = 274;
                 ctx->tx_buf = apf_allocate_tx_buffer(ctx->caller_ctx, ctx->tx_buf_len);
                 if (!ctx->tx_buf) {  // allocate failure
                     ctx->tx_buf_len = 0;
@@ -1529,6 +1560,8 @@ static int do_apf_run(apf_context *ctx) {
                 u8 cnt = (imm3 >> 3) + 2;  // number [2..33] of elements in set
                 if (ctx->pc + cnt * len > ctx->program_len) return EXCEPTION;
                 // cnt underflow on final iteration not an issue as not used after loop.
+                // Note: elements in imm4 must be strictly unique because matching toggles
+                // jmp ^= true without early break to ensure pc advances past all immediates.
                 while (cnt--) {
                     u32 v = 0;
                     for (int i = 0; i < len; ++i) v = (v << 8) | DECODE_U8();
