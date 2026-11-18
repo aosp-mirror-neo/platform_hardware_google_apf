@@ -150,6 +150,40 @@ extern "C" {
 #endif
 
 /**
+ * Selects the IEEE 802.11 FCS CRC-32 implementation used by the interpreter
+ * (for example, for Wi-Fi Aware Service Response Filter Bloom filter hashing).
+ * Set APF_CRC32_IMPL to one of:
+ *  - APF_CRC32_TABLE (default): 256-entry lookup table (faster, uses 1024
+ *    bytes of .rodata), recommended for mid- to high-tier firmware with
+ *    sufficient RAM.
+ *  - APF_CRC32_BITWISE: table-less bitwise calculation (slower, saves 1024
+ *    bytes of .rodata), recommended as a fallback for RAM-constrained low-end
+ *    firmware. Recent compilers can turn a bitwise CRC loop into a 1024-byte
+ *    lookup table: GCC 15+ (-foptimize-crc, on at -O2/-Os) and recent clang
+ *    (at -O1 to -O3). The branchless loop in apf_sda.h avoids this with
+ *    current compilers. To be safe, also disable the optimization (GCC:
+ *    -fno-optimize-crc; clang: -mllvm -disable-loop-idiom-hashrecognize;
+ *    compilers without the optimization reject these flags) and check
+ *    .rodata after building.
+ *  - APF_CRC32_EXTERNAL: firmware-provided implementation via the
+ *    apf_ieee80211_crc32() hook (for example, using hardware CRC-32
+ *    acceleration).
+ * The values start at 1 so that a misspelled name, which the preprocessor
+ * evaluates as 0, hits the #error below (and the one in apf_sda.h) instead of
+ * silently selecting an implementation.
+ */
+#define APF_CRC32_TABLE 1
+#define APF_CRC32_BITWISE 2
+#define APF_CRC32_EXTERNAL 3
+#ifndef APF_CRC32_IMPL
+#define APF_CRC32_IMPL APF_CRC32_TABLE
+#endif
+#if APF_CRC32_IMPL != APF_CRC32_TABLE && APF_CRC32_IMPL != APF_CRC32_BITWISE && \
+    APF_CRC32_IMPL != APF_CRC32_EXTERNAL
+#error "APF_CRC32_IMPL must be APF_CRC32_TABLE, APF_CRC32_BITWISE or APF_CRC32_EXTERNAL"
+#endif
+
+/**
  * Pointers to this struct are passed to all firmware hooks.
  * At minimum this identifies an interface
  * (whatever is the firmware equivalent of a Linux Kernel netdev)
@@ -432,6 +466,31 @@ uint8_t *apf_allocate_mgmt_buffer(struct apf_fw_ctx *ctx, uint32_t size);
  */
 int apf_transmit_mgmt_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len,
                              uint32_t freq_mhz, uint32_t wait_time_ms);
+
+#if APF_CRC32_IMPL == APF_CRC32_EXTERNAL
+
+/**
+ * Computes the standard IEEE 802.11 FCS CRC-32 over [buf, buf + len)
+ * (reflected polynomial 0xEDB88320, initial value 0xFFFFFFFF, final XOR
+ * 0xFFFFFFFF; equivalent to wpa_supplicant's ieee80211_crc32()).
+ *
+ * Only called when APF_CRC32_IMPL is APF_CRC32_EXTERNAL, allowing firmware with
+ * hardware CRC-32 acceleration or an existing shared CRC-32 routine in ROM
+ * to provide its own implementation.
+ *
+ * The implementation must return 0xCBF43926 for the 9 ASCII bytes
+ * "123456789" and 0 for len 0. A different reflection, initial value or
+ * final XOR silently breaks Bloom filter Service Response Filter matching.
+ * Bloom filter matching calls this 4 times per check, each time on a 7-byte
+ * buffer that may be unaligned.
+ *
+ * @param buf - pointer to the input bytes to hash.
+ * @param len - number of bytes to hash.
+ * @return the 32-bit IEEE 802.11 CRC-32 value.
+ */
+uint32_t apf_ieee80211_crc32(const uint8_t *buf, uint32_t len);
+
+#endif
 
 /****************************************
  * APF core definitions (do not modify) *
