@@ -341,6 +341,10 @@ static void apf_recalculate_global_timer(bool force) {
     u32 timer_end = 0;
 
     apf_global_lock();
+    // before() below needs all timer starts and deadlines to be within 2^31 ticks (~1.51 days)
+    // of each other. That is fine: timers are for wakeups, and none needs to be more than about
+    // a day out, since the APF program is reloaded at least once a day anyway (eg. for DHCP
+    // renewal, RA processing, IPv6 privacy address rotation).
     for (struct apf_state *state = apf_state_list_head; state; state = state->next) {
         if (!state->timer_set) continue;
 
