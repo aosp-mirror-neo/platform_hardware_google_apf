@@ -219,6 +219,10 @@ uint32_t apf_get_time_in_ticks(void);
  * only as a hint: from one serialized context (eg. a single work item), call
  * apf_ticks_until_next_timer_event() and arm the timer it returns.
  *
+ * The timer should not fire early: round up when converting ticks to your timer's units.
+ * If it fires early anyway (eg. the timer uses a different clock than apf_get_time_in_ticks()),
+ * apf_process_timer_event() runs nothing and arms the timer again for the remaining ticks.
+ *
  * @param relative_ticks - number of ticks from now when the timer should fire.
  *                         0 means fire immediately (call apf_process_timer_event).
  *                         0xFFFFFFFF means no timer scheduled.
