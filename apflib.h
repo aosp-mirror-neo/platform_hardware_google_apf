@@ -54,6 +54,11 @@ int apf_session_read_data(struct apf_state *state,
                           uint8_t *buf,
                           uint32_t length);
 
+// Simulates the firmware timer firing at 'now_16384ths' (same time base as the
+// filter_age_16384ths of apf_session_run_packet()): calls apf_process_timer_event() until it
+// returns false, like the firmware does. Returns the number of timer events run.
+int apf_session_process_timer_events(uint32_t now_16384ths);
+
 void apf_session_destroy(struct apf_state *state);
 
 #ifdef __cplusplus

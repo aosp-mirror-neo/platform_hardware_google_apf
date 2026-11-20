@@ -65,8 +65,9 @@
 #include <stddef.h>
 #include "apflib.h"
 
+// Sets the test clock. It keeps that time until set again, so APF calls that take no time
+// argument (eg. apf_disable() from apf_session_destroy()) see the same clock as the others.
 void apf_test_set_time_in_ticks(uint32_t ticks);
-void apf_test_clear_time_in_ticks(void);
 
 #define EXCEPTION 2
 
@@ -81,11 +82,9 @@ struct apf_state *apf_session_create(struct apf_fw_ctx *ctx,
 
     apf_test_set_time_in_ticks(0);
     if (apfnext__apf_write(state, -1, program, program_len)) {
-        apf_test_clear_time_in_ticks();
         apf_session_destroy(state);
         return NULL;
     }
-    apf_test_clear_time_in_ticks();
 
     return state;
 }
@@ -95,9 +94,7 @@ int apf_session_run_packet(struct apf_state *state,
                            uint32_t packet_len,
                            uint32_t filter_age_16384ths) {
     apf_test_set_time_in_ticks(filter_age_16384ths);
-    int result = apfnext__apf_run_full_data_packet(state, packet, packet_len);
-    apf_test_clear_time_in_ticks();
-    return result;
+    return apfnext__apf_run_full_data_packet(state, packet, packet_len);
 }
 
 void apf_session_suspend(struct apf_state *state) {
@@ -114,6 +111,15 @@ int apf_session_read_data(struct apf_state *state,
     const uint32_t actual_ram_len = apfnext__apf_get_ram_size(state);
     if (length > actual_ram_len) return -1;
     return apfnext__apf_read(state, actual_ram_len - length, buf, length);
+}
+
+int apf_session_process_timer_events(uint32_t now_16384ths) {
+    int count = 0;
+    apf_test_set_time_in_ticks(now_16384ths);
+    // Like the firmware when its timer fires: call until it returns false. The interpreter
+    // runs each interface at most once per round, so this always ends.
+    while (apfnext__apf_process_timer_event()) ++count;
+    return count;
 }
 
 void apf_session_destroy(struct apf_state *state) {
