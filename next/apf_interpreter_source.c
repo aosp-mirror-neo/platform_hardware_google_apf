@@ -998,14 +998,9 @@ static int do_apf_run(apf_context *ctx) {
     return EXCEPTION;
 }
 
-#ifndef APF_TWO_STAGE_FILTER
-int apf_run_full_data_packet(struct apf_state *state, const u8 *const packet, const u32 packet_len) {
-    if (!state) return EXCEPTION;
-
-    // Any valid ethernet packet should be at least ETH_HLEN long...
-    if (!packet) return EXCEPTION;
-    if (packet_len < ETH_HLEN) return EXCEPTION;
-
+// Runs the program of 'state' over 'packet'.
+static int apf_run_program(struct apf_state *state, const u8 *const packet, const u32 packet_len,
+                           const u32 internal_state) {
     // Due to direct 32-bit read/write access to counters at end of ram
     // APFv6 interpreter requires program & ram_len to be 4 byte aligned.
     if (3 & (uintptr_t)state->ram) return EXCEPTION;
@@ -1034,7 +1029,7 @@ int apf_run_full_data_packet(struct apf_state *state, const u8 *const packet, co
             .apf_version = APF_VERSION,
             .filter_age = filter_age_16384ths >> 14,
             .filter_age_16384ths = filter_age_16384ths,
-            .internal_state = state->suspended ? APF_INTERNAL_STATE_SUSPENDED : 0
+            .internal_state = internal_state
         }
     };
 
@@ -1054,6 +1049,18 @@ int apf_run_full_data_packet(struct apf_state *state, const u8 *const packet, co
         ret = PASS;
     }
     return ret;
+}
+
+#ifndef APF_TWO_STAGE_FILTER
+int apf_run_full_data_packet(struct apf_state *state, const u8 *const packet, const u32 packet_len) {
+    if (!state) return EXCEPTION;
+
+    // Any valid ethernet packet should be at least ETH_HLEN long...
+    if (!packet) return EXCEPTION;
+    if (packet_len < ETH_HLEN) return EXCEPTION;
+
+    return apf_run_program(state, packet, packet_len,
+                           state->suspended ? APF_INTERNAL_STATE_SUSPENDED : 0);
 }
 FOR_KERNEL(apf_run_full_data_packet)
 #endif
