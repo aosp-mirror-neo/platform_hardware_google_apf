@@ -228,6 +228,7 @@ typedef enum {
  *      #0 to #6 are zero initialized.
  *      Slot #7  is reserved for internal state bitmask:
  *               bit 0 (1): APF_INTERNAL_STATE_SUSPENDED
+ *               bit 1 (2): APF_INTERNAL_STATE_TIMER (timer run, there is no packet)
  *      Slot #8  is initialized with apf version (on APF >4).
  *      Slot #9  this is slot #15 with greater resolution (1/16384ths of a second)
  *      Slot #10 starts at zero, implicitly used as tx buffer output pointer.
@@ -273,6 +274,7 @@ typedef enum {
 #define MEMORY_ITEMS 16
 // Bitmask flags for slot #7 (internal_state):
 #define APF_INTERNAL_STATE_SUSPENDED 1
+#define APF_INTERNAL_STATE_TIMER 2
 // Upon program execution, some temporary memory slots are prefilled:
 
 typedef union {
@@ -1091,6 +1093,9 @@ void apf_resume(struct apf_state *state) {
 }
 FOR_KERNEL(apf_resume)
 
+static int apf_run_program(struct apf_state *state, const u8 *const packet, const u32 packet_len,
+                           const u32 internal_state);
+
 // TODO: require lock to be held when called
 static bool do_apf_process_timer_event(u32 current_time) {
     apf_global_lock();
@@ -1100,13 +1105,13 @@ static bool do_apf_process_timer_event(u32 current_time) {
         // If the next timer is in the future (accounting for wrap-around), skip this state.
         if (before(current_time, state->next_timer_abs)) continue;
 
-        // TODO: Implement the actual trigger timer logic for 'state' here.
-        // For example, executing a specific APF handler or program.
-
         // Clear the timer for this state to prevent an infinite loop.
         // The APF program is responsible for setting a new timer if needed.
         state->timer_set = false;
         apf_global_unlock();
+
+        apf_run_program(state, NULL, 0, APF_INTERNAL_STATE_TIMER
+                        | (state->suspended ? APF_INTERNAL_STATE_SUSPENDED : 0));
         return true;
     }
     apf_global_unlock();
@@ -1296,7 +1301,7 @@ static int do_apf_run(apf_context *ctx) {
             if (reg_num && !ctx->v6) {  // APFv6+
                 // First invocation of APFv6 jmpdata instruction
                 counter[-1] = 0x12345678;  // endianness marker
-                counter[-2]++;  // total packets ++
+                if (ctx->packet) counter[-2]++;  // total packets ++ (timer runs have no packet)
                 ctx->v6 = (u8)true;
             }
             // This can jump backwards. Infinite looping prevented by instructions_remaining.
@@ -1508,6 +1513,7 @@ static int do_apf_run(apf_context *ctx) {
                 ASSERT_RETURN(ctx->tx_buf);
                 ASSERT_IN_OUTPUT_BOUNDS(dst_offs, copy_len);
                 if (reg_num == 0) {  // copy from packet
+                    ASSERT_RETURN(ctx->packet);
                     ASSERT_RETURN(pktcopy_src_offset + copy_len <= ctx->packet_len &&
                                   pktcopy_src_offset + copy_len >= pktcopy_src_offset);
                     memcpy(ctx->tx_buf + dst_offs, ctx->packet + pktcopy_src_offset, copy_len);
@@ -1666,7 +1672,7 @@ static int do_apf_run(apf_context *ctx) {
     return EXCEPTION;
 }
 
-// Runs the program of 'state' over 'packet'.
+// Runs the program of 'state' over 'packet' (NULL and length 0 for timer runs).
 static int apf_run_program(struct apf_state *state, const u8 *const packet, const u32 packet_len,
                            const u32 internal_state) {
     // Due to direct 32-bit read/write access to counters at end of ram
@@ -1712,7 +1718,7 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
             buf_size -= sizeof(apf_ctx);
             buf += sizeof(apf_ctx);
             if (buf_size > apf_ctx.packet_len) buf_size = apf_ctx.packet_len;
-            memcpy(buf, apf_ctx.packet, buf_size);
+            if (buf_size) memcpy(buf, apf_ctx.packet, buf_size);
         }
         ret = PASS;
     }

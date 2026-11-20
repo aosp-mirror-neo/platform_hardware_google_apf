@@ -101,6 +101,7 @@
  *      #0 to #6 are zero initialized.
  *      Slot #7  is reserved for internal state bitmask:
  *               bit 0 (1): APF_INTERNAL_STATE_SUSPENDED
+ *               bit 1 (2): APF_INTERNAL_STATE_TIMER (timer run, there is no packet)
  *      Slot #8  is initialized with apf version (on APF >4).
  *      Slot #9  this is slot #15 with greater resolution (1/16384ths of a second)
  *      Slot #10 starts at zero, implicitly used as tx buffer output pointer.
@@ -146,6 +147,7 @@
 #define MEMORY_ITEMS 16
 // Bitmask flags for slot #7 (internal_state):
 #define APF_INTERNAL_STATE_SUSPENDED 1
+#define APF_INTERNAL_STATE_TIMER 2
 // Upon program execution, some temporary memory slots are prefilled:
 
 typedef union {

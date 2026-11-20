@@ -256,17 +256,16 @@ void apf_free_state(struct apf_fw_ctx* ctx, void* ptr, uint32_t size);
  * Allocates a buffer for the APF program to build a reply packet.
  *
  * Unless in a critical low memory state, the firmware must allow allocating at
- * least one 1514 byte buffer for every call to apf_run_packet() or
- * apf_run_full_data_packet(). The interpreter will have at most one active
- * allocation at any given time, and will always either transmit or deallocate
- * the buffer before apf_run_packet() or apf_run_full_data_packet() returns.
+ * least one 1514 byte buffer for every call to apf_run_packet(),
+ * apf_run_full_data_packet() or apf_process_timer_event(). The interpreter will
+ * have at most one active allocation at any given time, and will always either
+ * transmit or deallocate the buffer before that call returns.
  *
- * It is OK if the firmware decides to limit allocations to at most one per
- * apf_run_packet() / apf_run_full_data_packet() invocation. This allows the
- * firmware to delay transmitting the buffer until after the call has returned
- * (by keeping track of whether a buffer was allocated/deallocated/scheduled
- * for transmit) and may allow the use of a single statically allocated
- * 1514+ byte buffer.
+ * It is OK if the firmware decides to limit allocations to at most one per such
+ * call. This allows the firmware to delay transmitting the buffer until after
+ * the call has returned (by keeping track of whether a buffer was
+ * allocated/deallocated/scheduled for transmit) and may allow the use of a
+ * single statically allocated 1514+ byte buffer.
  *
  * The firmware MAY choose to allocate a larger buffer than requested, and
  * give the apf_interpreter a pointer to the middle of the buffer. This will
