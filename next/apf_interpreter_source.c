@@ -271,7 +271,7 @@ int apf_read(const struct apf_state *state, u32 offset, u8 *buf, u32 length) {
 }
 FOR_KERNEL(apf_read)
 
-static void apf_recalculate_global_timer(void);
+static void apf_recalculate_global_timer(bool force);
 
 // TODO - think about what this should return
 int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
@@ -287,7 +287,7 @@ int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
         memcpy(state->ram, buf, length);
         state->program_install_time = apf_get_time_in_ticks();
         state->program_len = length;
-        apf_recalculate_global_timer();
+        apf_recalculate_global_timer(false);
         return 0;
     }
     if ((u32)offset + length < (u32)offset) return -1;
@@ -334,8 +334,8 @@ static bool before(u32 a, u32 b) {
     return (s32)(a - b) < 0;
 }
 
-// TODO: needs another thorough code review
-static void apf_recalculate_global_timer(void) {
+// 'force' arms the firmware timer even if unchanged, eg. because the armed one already fired.
+static void apf_recalculate_global_timer(bool force) {
     bool any_timer_set = false;
     u32 timer_abs = 0;
     u32 timer_end = 0;
@@ -357,7 +357,8 @@ static void apf_recalculate_global_timer(void) {
 
     if (any_timer_set) {
         u32 precision = timer_end - timer_abs;
-        bool need_to_arm = !apf_global_timer_set
+        bool need_to_arm = force
+            || !apf_global_timer_set
             || (apf_global_next_timer_abs != timer_abs)
             || (apf_global_timer_precision != precision);
 
@@ -404,7 +405,7 @@ void apf_disable(struct apf_state *state) {
 
     apf_free_state(ctx, state, total_size);
 
-    apf_recalculate_global_timer();
+    apf_recalculate_global_timer(false);
 }
 FOR_KERNEL(apf_disable)
 
@@ -443,7 +444,8 @@ static bool do_apf_process_timer_event(u32 current_time) {
         return true;
     }
     apf_global_unlock();
-    apf_recalculate_global_timer();
+    // The firmware timer which started this round has fired, so arm the next one (if any).
+    apf_recalculate_global_timer(true);
     return false;
 }
 
