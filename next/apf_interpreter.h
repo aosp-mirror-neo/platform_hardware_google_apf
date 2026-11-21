@@ -206,6 +206,19 @@ uint32_t apf_get_time_in_ticks(void);
 /**
  * Called by the interpreter to schedule the next timer event.
  *
+ * Called without the APF firmware global lock held, so that:
+ * - a slow call does not block other APF calls that need the lock.
+ * - it may take firmware locks that other threads hold while they call APF functions. But it
+ *   runs on the thread that called apf_write(), apf_disable() or apf_process_timer_event(),
+ *   so it must not take a lock that this thread already holds.
+ * It must not call any APF function: it should only schedule the next apf_process_timer_event()
+ * call.
+ *
+ * It may run on several threads at once, eg. when programs are installed on two interfaces at
+ * the same time, so a call with older values can arrive last. If that matters, treat the call
+ * only as a hint: from one serialized context (eg. a single work item), call
+ * apf_ticks_until_next_timer_event() and arm the timer it returns.
+ *
  * @param relative_ticks - number of ticks from now when the timer should fire.
  *                         0 means fire immediately (call apf_process_timer_event).
  *                         0xFFFFFFFF means no timer scheduled.

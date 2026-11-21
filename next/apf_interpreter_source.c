@@ -369,6 +369,8 @@ static void apf_recalculate_global_timer(bool force) {
         if (need_to_arm) {
             u32 diff = do_apf_ticks_until_next_timer_event(&precision);
 
+            // Arm after dropping the lock (also below), so that apf_set_timer() may be slow or
+            // take firmware locks. See apf_set_timer() in apf_interpreter.h.
             apf_global_unlock();
             apf_set_timer(diff, precision);
             return;
