@@ -51,6 +51,9 @@ static uint8_t *do_apf_allocate_buffer(__attribute__ ((unused)) struct apf_fw_ct
   ptr->next = NULL;
   ptr->len = 0;
   ptr->ingress = ingress;
+  // 0xff is not a valid apf_transmit_type. do_apf_transmit_buffer() sets the real type, but a
+  // rejected transmit (bad length or pointer) leaves the buffer as is, like len above.
+  ptr->tx_type = 0xff;
 
   if (!head) {
     // the first buffer allocated
@@ -84,23 +87,24 @@ uint8_t *apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size) {
  * Update the buffer length and dscp value from the transmit packet.
  */
 static int do_apf_transmit_buffer(__attribute__((unused)) struct apf_fw_ctx *ctx, uint8_t *ptr,
-                           uint32_t len, uint8_t dscp, bool ingress) {
+                           uint32_t len, uint8_t dscp, bool ingress, uint8_t tx_type) {
   if (len && len < ETH_HLEN) return -1;
   if (!tail || (ptr != tail->data)) return -1;
   if (ingress != tail->ingress) abort();
 
   tail->len = len;
+  tail->tx_type = tx_type;
   apf_test_tx_dscp = dscp;
   return 0;
 }
 
 int apf_transmit_rx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {
-  return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/true);
+  return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/true, 0xFF);
 }
 
 int apf_transmit_tx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp,
-                            __attribute__((unused)) apf_transmit_type type) {
-  return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/false);
+                            apf_transmit_type type) {
+  return do_apf_transmit_buffer(ctx, ptr, len, dscp, /*ingress*/false, (uint8_t)type);
 }
 
 int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp) {

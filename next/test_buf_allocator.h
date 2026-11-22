@@ -27,6 +27,7 @@ typedef struct packet_buffer {
     uint8_t data[BUFFER_SIZE];
     uint32_t len;
     bool ingress;
+    uint8_t tx_type;  // egress: the apf_transmit_type it was sent with; 0xff (invalid) for RX
     struct packet_buffer *next;
 } packet_buffer;
 
