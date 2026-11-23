@@ -1130,9 +1130,16 @@ bool apf_process_timer_event(void) {
 FOR_KERNEL(apf_process_timer_event)
 
 static inline int do_transmit_buffer(apf_context *ctx, u32 pkt_len, u8 dscp) {
-    int ret = ctx->tx_to_host
-            ? apf_transmit_rx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp)
-            : apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp, UNICAST_RETURN);
+    int ret;
+    if (ctx->tx_to_host) {
+        ret = apf_transmit_rx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp);
+    } else {
+        // Timer runs have no packet to reply to, so send to the destination MAC (unicast or
+        // group).
+        const apf_transmit_type type = ctx->packet ? UNICAST_RETURN
+                                     : (ctx->tx_buf[0] & 1) ? MULTICAST : UNICAST_OTHER;
+        ret = apf_transmit_tx_buffer(ctx->caller_ctx, ctx->tx_buf, pkt_len, dscp, type);
+    }
     ctx->tx_buf = NULL;
     ctx->tx_buf_len = 0;
     ctx->tx_to_host = 0;
