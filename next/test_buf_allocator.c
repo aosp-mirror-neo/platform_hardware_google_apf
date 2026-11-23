@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "apf_interpreter.h"
 #include "test_buf_allocator.h"
@@ -25,7 +24,10 @@
 packet_buffer *head = NULL;
 packet_buffer *tail = NULL;
 uint8_t apf_test_tx_dscp;
-static bool apf_test_time_is_set;
+bool apf_test_set_timer_called;
+uint32_t apf_test_timer_relative_ticks;
+uint32_t apf_test_timer_precision_ticks;
+// Simulated clock: starts at 0 and keeps the last time a test set.
 static uint32_t apf_test_time_in_ticks;
 
 /**
@@ -120,27 +122,17 @@ void apf_free_state(__attribute__((unused)) struct apf_fw_ctx *ctx, void *ptr, _
 }
 
 uint32_t apf_get_time_in_ticks(void) {
-  if (apf_test_time_is_set) return apf_test_time_in_ticks;
-
-  struct timespec ts;
-  if (clock_gettime(CLOCK_MONOTONIC, &ts)) abort();
-
-  // Convert to 1/16384ths of a second
-  uint64_t ticks = (uint64_t)ts.tv_sec * 16384;
-  ticks += ((uint64_t)ts.tv_nsec * 16384) / 1000000000ULL;
-  return (uint32_t)ticks;
+  return apf_test_time_in_ticks;
 }
 
 void apf_test_set_time_in_ticks(uint32_t ticks) {
   apf_test_time_in_ticks = ticks;
-  apf_test_time_is_set = true;
 }
 
-void apf_test_clear_time_in_ticks(void) {
-  apf_test_time_is_set = false;
-}
-
-void apf_set_timer(__attribute__((unused)) uint32_t relative_ticks, __attribute__((unused)) uint32_t precision_ticks) {
+void apf_set_timer(uint32_t relative_ticks, uint32_t precision_ticks) {
+  apf_test_set_timer_called = true;
+  apf_test_timer_relative_ticks = relative_ticks;
+  apf_test_timer_precision_ticks = precision_ticks;
 }
 
 void apf_global_lock(void) {

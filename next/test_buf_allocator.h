@@ -35,6 +35,11 @@ extern packet_buffer *head;
 extern packet_buffer *tail;
 extern uint8_t apf_test_tx_dscp;
 
+// Set by apf_set_timer(), which also stores its arguments below. Tests clear it.
+extern bool apf_test_set_timer_called;
+extern uint32_t apf_test_timer_relative_ticks;
+extern uint32_t apf_test_timer_precision_ticks;
+
 // due to -Wmissing-prototype we need to declare these functions which
 // older (than next) interpreters need at link time
 //
@@ -44,6 +49,5 @@ struct apf_fw_ctx;
 uint8_t *apf_allocate_buffer(struct apf_fw_ctx *ctx, uint32_t size);
 int apf_transmit_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, uint8_t dscp);
 void apf_test_set_time_in_ticks(uint32_t ticks);
-void apf_test_clear_time_in_ticks(void);
 
 #endif  // TEST_BUF_ALLOCATOR
