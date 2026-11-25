@@ -1057,7 +1057,16 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
     // Convert any exceptions internal to the program to just normal 'PASS'
     if (ret >= EXCEPTION) {
         u16 buf_size = apf_ctx.except_buf_sz;
-        if (buf_size >= sizeof(apf_ctx) && apf_ctx.program_len + buf_size <= apf_ctx.ram_len) {
+        // Timer runs (NULL packet) do not write the exception dump, so that it keeps the dump
+        // of the last real packet:
+        // - Installing a program fires its timer, so every install causes one timer run.
+        // - Programs that do not check APF_INTERNAL_STATE_TIMER (eg. all programs before
+        //   APFv8) read the packet first, so that run aborts at its first packet load.
+        // - Writing the dump there would replace the real packet's dump on every install.
+        // - Programs cannot be trusted to check the bit: NetworkStack and the firmware update
+        //   separately, so a new interpreter can still run programs from an old NetworkStack.
+        if (packet && buf_size >= sizeof(apf_ctx)
+                && apf_ctx.program_len + buf_size <= apf_ctx.ram_len) {
             u8* buf = apf_ctx.program + apf_ctx.program_len;
             memcpy(buf, &apf_ctx, sizeof(apf_ctx));
             buf_size -= sizeof(apf_ctx);
