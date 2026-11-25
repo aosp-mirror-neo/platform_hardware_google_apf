@@ -946,10 +946,14 @@ int apf_write(struct apf_state *state, s32 offset, const u8 *buf, u32 length) {
         state->program_len = 0;  // TODO maybe only ifdef APF_LOCK
         // Note: memory past length (counters and data region) is intentionally
         // preserved across program reinstallation and not zeroed out.
-        state->timer_set = false;
         memcpy(state->ram, buf, length);
         state->program_install_time = apf_get_time_in_ticks();
         state->program_len = length;
+        // Replace the old program's timer with one that fires right away, so the new program
+        // runs and can arm its own timer.
+        state->next_timer_abs = state->program_install_time;
+        state->timer_precision = 0;
+        state->timer_set = true;
         apf_recalculate_global_timer(false);
         return 0;
     }

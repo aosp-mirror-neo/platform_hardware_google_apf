@@ -423,6 +423,8 @@ int apf_read(const struct apf_state *state, uint32_t offset, uint8_t *buf, uint3
  * Write from a buffer 'buf' of length 'length' into APF RAM (at an offset)
  * Firmware should not assign any meaning nor perform any validation of offset,
  * for example an offset of -1 is used to represent program installation.
+ * Installing a program also fires the interface's timer right away (via apf_set_timer()),
+ * so that the new program can arm its own timer.
  */
 int apf_write(struct apf_state *state, int32_t offset, const uint8_t *buf, uint32_t length);
 
