@@ -160,6 +160,9 @@ cc_library_static {
     srcs: [
         "next-nan/apf_interpreter.c",
     ],
+    // Firmware compilers may only support C99: see next-nan/mk for the -pedantic build, which
+    // Soong does not allow.
+    c_std: "c99",
     sdk_version: "minimum",
 }
 
