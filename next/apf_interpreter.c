@@ -222,10 +222,13 @@ typedef enum {
  *  Miscellaneous details:
  *
  *  Pre-filled temporary memory slot values
- *    When the APF program begins execution, nine of the sixteen memory slots
+ *    When the APF program begins execution, ten of the sixteen memory slots
  *    are pre-filled by the interpreter with values that may be useful for
  *    programs:
- *      #0 to #6 are zero initialized.
+ *      #0 to #5 are zero initialized.
+ *      Slot #6  (APFv8) is filled with the current time in 1/16384ths of a second
+ *               (apf_get_time_in_ticks()). Unlike slot #9, it does not reset on
+ *               program install. Wraps every ~72.8 hours.
  *      Slot #7  is reserved for internal state bitmask:
  *               bit 0 (1): APF_INTERNAL_STATE_SUSPENDED
  *               bit 1 (2): APF_INTERNAL_STATE_TIMER (timer run, there is no packet)
@@ -279,16 +282,17 @@ typedef enum {
 
 typedef union {
   struct {
-    u32 pad[7];               // 0..6
-    u32 internal_state;       // 7:  Internal state bitmask (see APF_INTERNAL_STATE_*).
-    u32 apf_version;          // 8:  Initialized with APF_VERSION
-    u32 filter_age_16384ths;  // 9:  Age since filter installed in 1/16384 seconds.
-    u32 tx_buf_offset;        // 10: Offset in tx_buf where next byte will be written
-    u32 program_size;         // 11: Size of program (in bytes)
-    u32 ram_len;              // 12: Total size of program + data, ie. ram_len
-    u32 ipv4_header_size;     // 13: 4*([ETH_HLEN]&15)
-    u32 packet_size;          // 14: Size of packet in bytes.
-    u32 filter_age;           // 15: Age since filter installed in seconds.
+    u32 pad[6];                 // 0..5
+    u32 current_time_16384ths;  // 6:  Current time in 1/16384 seconds.
+    u32 internal_state;         // 7:  Internal state bitmask (see APF_INTERNAL_STATE_*).
+    u32 apf_version;            // 8:  Initialized with APF_VERSION
+    u32 filter_age_16384ths;    // 9:  Age since filter installed in 1/16384 seconds.
+    u32 tx_buf_offset;          // 10: Offset in tx_buf where next byte will be written
+    u32 program_size;           // 11: Size of program (in bytes)
+    u32 ram_len;                // 12: Total size of program + data, ie. ram_len
+    u32 ipv4_header_size;       // 13: 4*([ETH_HLEN]&15)
+    u32 packet_size;            // 14: Size of packet in bytes.
+    u32 filter_age;             // 15: Age since filter installed in seconds.
   } named;
   u32 slot[MEMORY_ITEMS];
 } memory_type;
@@ -766,7 +770,7 @@ static int csum_and_return_dscp(u8* const pkt,
 }
 // End include of apf_checksum.h
 
-#define APF_VERSION 20261116
+#define APF_VERSION 20261127
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK
@@ -1698,7 +1702,9 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
     // We also don't want garbage like program_len == 0xFFFFFFFF
     if ((state->program_len | state->ram_size) >> 31) return EXCEPTION;
 
-    const u32 filter_age_16384ths = apf_get_time_in_ticks() - state->program_install_time;
+    // Read the clock once, so slots #6 and #9 agree.
+    const u32 now = apf_get_time_in_ticks();
+    const u32 filter_age_16384ths = now - state->program_install_time;
 
     apf_context apf_ctx = {
         .ptr_size = (u8)sizeof(void*),
@@ -1709,13 +1715,14 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
         .packet = packet,
         .packet_len = packet_len,
         .mem.named = {
+            .current_time_16384ths = now,
+            .internal_state = internal_state,
+            .apf_version = APF_VERSION,
+            .filter_age_16384ths = filter_age_16384ths,
             .program_size = state->program_len,
             .ram_len = state->ram_size,
             .packet_size = packet_len,
-            .apf_version = APF_VERSION,
             .filter_age = filter_age_16384ths >> 14,
-            .filter_age_16384ths = filter_age_16384ths,
-            .internal_state = internal_state
         }
     };
 

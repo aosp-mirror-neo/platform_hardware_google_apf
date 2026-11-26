@@ -103,7 +103,7 @@ APF_STATIC_ASSERT(!(APF_MEMORY_ALLOCATION_GRANULARITY % offsetof(struct apf_ptr_
 #include "apf_dns.h"
 #include "apf_checksum.h"
 
-#define APF_VERSION 20261116
+#define APF_VERSION 20261127
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK
@@ -1035,7 +1035,9 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
     // We also don't want garbage like program_len == 0xFFFFFFFF
     if ((state->program_len | state->ram_size) >> 31) return EXCEPTION;
 
-    const u32 filter_age_16384ths = apf_get_time_in_ticks() - state->program_install_time;
+    // Read the clock once, so slots #6 and #9 agree.
+    const u32 now = apf_get_time_in_ticks();
+    const u32 filter_age_16384ths = now - state->program_install_time;
 
     apf_context apf_ctx = {
         .ptr_size = (u8)sizeof(void*),
@@ -1046,13 +1048,14 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
         .packet = packet,
         .packet_len = packet_len,
         .mem.named = {
+            .current_time_16384ths = now,
+            .internal_state = internal_state,
+            .apf_version = APF_VERSION,
+            .filter_age_16384ths = filter_age_16384ths,
             .program_size = state->program_len,
             .ram_len = state->ram_size,
             .packet_size = packet_len,
-            .apf_version = APF_VERSION,
             .filter_age = filter_age_16384ths >> 14,
-            .filter_age_16384ths = filter_age_16384ths,
-            .internal_state = internal_state
         }
     };
 
