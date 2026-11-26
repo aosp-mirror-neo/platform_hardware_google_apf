@@ -524,6 +524,27 @@ typedef union {
  */
 #define ALLOCATE_RX_EXT_OPCODE 59
 
+/* APFv8: Arm or clear this interface's one-shot timer for a future packet-less
+ * timer run (APF_INTERNAL_STATE_TIMER set in m[7]). Valid in both packet and
+ * timer runs.
+ *
+ * R=0 (settimer): fire in [now + R0 .. now + R0 + R1].
+ *   R0: delay in ticks [APF_TICKS_PER_SECOND .. APF_TICKS_PER_DAY] (1 s .. 1 day).
+ *   R1: allowed lateness (precision) in ticks [0 .. 6 * APF_TICKS_PER_HOUR].
+ *   Out-of-range inputs abort the run.
+ *   If a timer is already armed, pulls in the start and deadline separately
+ *   (min start, min deadline); never pushes either later.
+ * R=1 (cleartimer): cancel this interface's pending timer (R0/R1 ignored),
+ *   including any pending timer from other tasks or apf_write().
+ *
+ * To overwrite an armed timer (e.g. push it out), run cleartimer then settimer.
+ * Arm the timer before allocate/transmit, since a failed send aborts the run.
+ * Timer runs must recompute all logical deadlines, since the timer may fire
+ * for whichever task was earliest.
+ * e.g. "settimer delay=r0, precision=r1", "cleartimer"
+ */
+#define SETTIMER_EXT_OPCODE 60
+
 // This extended opcode is used to implement PKTDATACOPY_OPCODE
 #define PKTDATACOPYIMM_EXT_OPCODE 65536
 
@@ -770,7 +791,7 @@ static int csum_and_return_dscp(u8* const pkt,
 }
 // End include of apf_checksum.h
 
-#define APF_VERSION 20261127
+#define APF_VERSION 20261128
 
 // User hook for interpreter debug tracing.
 #ifdef APF_TRACE_HOOK
@@ -1182,7 +1203,7 @@ static inline u8 read_packet_u8(apf_context *ctx, u32 ofs) {
     return ctx->packet[ofs];
 }
 
-static int do_apf_run(apf_context *ctx) {
+static int do_apf_run(apf_context *ctx, struct apf_state *state) {
 // Is offset within ram bounds?
 #define IN_RAM_BOUNDS(p) (ENFORCE_UNSIGNED(p) && (p) < ctx->ram_len)
 // Is offset within packet bounds?
@@ -1627,6 +1648,41 @@ static int do_apf_run(apf_context *ctx) {
                 ctx->except_buf_sz = decode_be16(ctx);
                 break;
               }
+              case SETTIMER_EXT_OPCODE: {
+                if (reg_num) {
+                    // R=1: cleartimer (cancel this interface's pending timer).
+                    state->timer_set = false;
+                    break;
+                }
+
+                const u32 delay = ctx->R[0];
+                const u32 precision = ctx->R[1];
+                // 1 s floor ensures apf_process_timer_event() loops end.
+                // 1 day delay + 6 h precision <= 30 h, within before()'s ~1.51 day range.
+                const u32 min_delay = APF_TICKS_PER_SECOND;
+                const u32 max_delay = APF_TICKS_PER_DAY;
+                const u32 max_precision = 6u * APF_TICKS_PER_HOUR;
+                if (delay < min_delay || delay > max_delay) return EXCEPTION;
+                if (precision > max_precision) return EXCEPTION;
+
+                const u32 new_abs = apf_get_time_in_ticks() + delay;
+                if (!state->timer_set) {
+                    state->next_timer_abs = new_abs;
+                    state->timer_precision = precision;
+                    state->timer_set = true;
+                } else {
+                    // Pull in start and deadline if the new window is earlier
+                    // (same rule as apf_recalculate_global_timer()).
+                    const u32 new_end = new_abs + precision;
+                    u32 abs = state->next_timer_abs;
+                    u32 end = abs + state->timer_precision;
+                    if (before(new_abs, abs)) abs = new_abs;
+                    if (before(new_end, end)) end = new_end;
+                    state->next_timer_abs = abs;
+                    state->timer_precision = end - abs;
+                }
+                break;
+              }
               default:  // Unknown extended opcode
                 return EXCEPTION;  // Bail out
             }
@@ -1726,7 +1782,11 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
         }
     };
 
-    int ret = do_apf_run(&apf_ctx);
+    const bool orig_timer_set = state->timer_set;
+    const u32 orig_next_timer_abs = state->next_timer_abs;
+    const u32 orig_timer_precision = state->timer_precision;
+
+    int ret = do_apf_run(&apf_ctx, state);
     if (apf_ctx.tx_buf) do_discard_buffer(&apf_ctx);
     // Convert any exceptions internal to the program to just normal 'PASS'
     if (ret >= EXCEPTION) {
@@ -1749,6 +1809,13 @@ static int apf_run_program(struct apf_state *state, const u8 *const packet, cons
             if (buf_size) memcpy(buf, apf_ctx.packet, buf_size);
         }
         ret = PASS;
+    }
+    // Timer runs recalculate at the end of apf_process_timer_event(); packet runs
+    // must recalculate here if settimer/cleartimer changed this interface's timer.
+    if (packet && (state->timer_set != orig_timer_set ||
+                   (state->timer_set && (state->next_timer_abs != orig_next_timer_abs ||
+                                         state->timer_precision != orig_timer_precision)))) {
+        apf_recalculate_global_timer(false);
     }
     return ret;
 }

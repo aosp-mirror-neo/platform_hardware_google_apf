@@ -397,6 +397,27 @@ typedef union {
  */
 #define ALLOCATE_RX_EXT_OPCODE 59
 
+/* APFv8: Arm or clear this interface's one-shot timer for a future packet-less
+ * timer run (APF_INTERNAL_STATE_TIMER set in m[7]). Valid in both packet and
+ * timer runs.
+ *
+ * R=0 (settimer): fire in [now + R0 .. now + R0 + R1].
+ *   R0: delay in ticks [APF_TICKS_PER_SECOND .. APF_TICKS_PER_DAY] (1 s .. 1 day).
+ *   R1: allowed lateness (precision) in ticks [0 .. 6 * APF_TICKS_PER_HOUR].
+ *   Out-of-range inputs abort the run.
+ *   If a timer is already armed, pulls in the start and deadline separately
+ *   (min start, min deadline); never pushes either later.
+ * R=1 (cleartimer): cancel this interface's pending timer (R0/R1 ignored),
+ *   including any pending timer from other tasks or apf_write().
+ *
+ * To overwrite an armed timer (e.g. push it out), run cleartimer then settimer.
+ * Arm the timer before allocate/transmit, since a failed send aborts the run.
+ * Timer runs must recompute all logical deadlines, since the timer may fire
+ * for whichever task was earliest.
+ * e.g. "settimer delay=r0, precision=r1", "cleartimer"
+ */
+#define SETTIMER_EXT_OPCODE 60
+
 // This extended opcode is used to implement PKTDATACOPY_OPCODE
 #define PKTDATACOPYIMM_EXT_OPCODE 65536
 
