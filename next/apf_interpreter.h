@@ -197,9 +197,9 @@ void apf_global_unlock(void);
  *
  * - if you have a u32 clock source counting milliseconds and cannot use 64-bit arithmetic:
  *     u32 milliseconds = current_millisecond_time_u32();
- *     u32 ticks = ((((((milliseconds << 4) / 5) << 2) / 5) << 2) / 5) << 3;
- *   or the less precise:
- *     u32 ticks = ((milliseconds << 4) / 125) << 7;
+ *     u32 ticks = (milliseconds / 125) * 2048 + (milliseconds % 125) * 2048 / 125;
+ *   This gives the same ticks as the u64 milliseconds formula above, until milliseconds wraps
+ *   (every ~49.7 days): then ticks jump.
  */
 uint32_t apf_get_time_in_ticks(void);
 
