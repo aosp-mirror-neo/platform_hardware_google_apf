@@ -525,6 +525,14 @@ disas_ret apf_disassemble(const uint8_t* program, uint32_t program_len, uint32_t
                     bprintf("size=%d", buf_size);
                     break;
                 }
+                case SETTIMER_EXT_OPCODE:
+                    if (reg_num) {
+                        print_opcode("cleartimer");
+                    } else {
+                        print_opcode("settimer");
+                        bprintf("delay=r0, precision=r1");
+                    }
+                    break;
                 default:
                     bprintf("unknown_ext %u", imm);
                     break;

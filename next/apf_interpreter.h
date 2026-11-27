@@ -215,8 +215,8 @@ uint32_t apf_get_time_in_ticks(void);
  * Called without the APF firmware global lock held, so that:
  * - a slow call does not block other APF calls that need the lock.
  * - it may take firmware locks that other threads hold while they call APF functions. But it
- *   runs on the thread that called apf_write(), apf_disable() or apf_process_timer_event(),
- *   so it must not take a lock that this thread already holds.
+ *   runs on the thread that called apf_write(), apf_disable(), apf_process_timer_event(),
+ *   or apf_run_full_data_packet(), so it must not take a lock that this thread already holds.
  * It must not call any APF function: it should only schedule the next apf_process_timer_event()
  * call.
  *
@@ -370,6 +370,9 @@ int apf_transmit_rx_buffer(struct apf_fw_ctx *ctx, uint8_t *ptr, uint32_t len, u
  */
 #define APF_TICKS_PER_SECOND_LOG2 14
 #define APF_TICKS_PER_SECOND (1 << APF_TICKS_PER_SECOND_LOG2)
+#define APF_TICKS_PER_MINUTE (60u * APF_TICKS_PER_SECOND)
+#define APF_TICKS_PER_HOUR   (60u * APF_TICKS_PER_MINUTE)
+#define APF_TICKS_PER_DAY    (24u * APF_TICKS_PER_HOUR)
 
 /**
  * This structure is returned via apf_get_info()
@@ -473,6 +476,8 @@ uint32_t apf_ticks_until_next_timer_event(uint32_t *precision);
  * Possibly should be invoked as:
  *   while (apf_process_timer_event()) if_needed_do_tx_and_rx_flush();
  * Only the final call (which returns false) will arm the next timer via apf_set_timer().
+ * SETTIMER requires at least a 1 second delay (see apf.h), so this loop will not
+ * re-run the same interface unless the loop itself takes over 1 second.
  */
 bool apf_process_timer_event(void);
 

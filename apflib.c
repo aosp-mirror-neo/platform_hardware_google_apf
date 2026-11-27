@@ -116,8 +116,8 @@ int apf_session_read_data(struct apf_state *state,
 int apf_session_process_timer_events(uint32_t now_16384ths) {
     int count = 0;
     apf_test_set_time_in_ticks(now_16384ths);
-    // Like the firmware when its timer fires: call until it returns false. The interpreter
-    // runs each interface at most once per round, so this always ends.
+    // Like the firmware when its timer fires: call until it returns false. The test clock does
+    // not move in this loop and timers are armed at least 1 second ahead, so this always ends.
     while (apfnext__apf_process_timer_event()) ++count;
     return count;
 }
